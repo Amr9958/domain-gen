@@ -60,6 +60,77 @@ def _random_bank_word(word_banks: Mapping[str, Sequence[str]], excluded: set[str
     return random.choice(word_banks[category])
 
 
+def _normalize_keywords(keywords_str: str) -> list[str]:
+    """Parse and deduplicate user-selected keywords."""
+    ordered_keywords: list[str] = []
+    seen: set[str] = set()
+    for raw_keyword in keywords_str.split(","):
+        clean_keyword = _clean_name(raw_keyword.strip())
+        if len(clean_keyword) < 3 or clean_keyword in seen:
+            continue
+        seen.add(clean_keyword)
+        ordered_keywords.append(clean_keyword)
+    return ordered_keywords
+
+
+def _merge_parts(left: str, right: str) -> str:
+    """Join two strings while trimming obvious overlap at the boundary."""
+    if not left:
+        return right
+    if not right:
+        return left
+    if left[-1] == right[0]:
+        return left + right[1:]
+    return left + right
+
+
+def _keyword_front(word: str) -> str:
+    """Take a reusable front chunk from a selected keyword."""
+    if len(word) <= 5:
+        return word
+    return word[: max(3, min(6, (len(word) + 1) // 2))]
+
+
+def _keyword_back(word: str) -> str:
+    """Take a reusable back chunk from a selected keyword."""
+    if len(word) <= 5:
+        return word
+    return word[-max(3, min(6, len(word) // 2)) :]
+
+
+def _build_keyword_base_names(user_keywords: Sequence[str], target_count: int) -> list[tuple[str, str]]:
+    """Generate keyword-anchored base names using only selected keywords and their fragments."""
+    results: list[tuple[str, str]] = []
+    seen: set[str] = set()
+
+    def add(raw_name: str, method: str) -> None:
+        clean_name = _clean_name(raw_name)
+        if not _is_valid_candidate(clean_name) or clean_name in seen:
+            return
+        seen.add(clean_name)
+        results.append((clean_name, method))
+
+    for keyword in user_keywords:
+        add(keyword, "keyword")
+        add(_cut_name(keyword), "cut")
+        add(_twist_name(keyword), "twist")
+        if len(results) >= target_count:
+            return results
+
+    for left in user_keywords:
+        for right in user_keywords:
+            if left == right:
+                continue
+            add(_merge_parts(left, right), "combine")
+            add(_merge_parts(_keyword_front(left), right), "combine")
+            add(_merge_parts(left, _keyword_back(right)), "combine")
+            add(_merge_parts(_keyword_front(left), _keyword_back(right)), "blend")
+            if len(results) >= target_count:
+                return results
+
+    return results
+
+
 def _build_base_name(
     word_banks: Mapping[str, Sequence[str]],
     user_keywords: Sequence[str],
@@ -125,30 +196,45 @@ def generate_domains(
 ) -> list[dict[str, str | bool]]:
     """Generate a pool of candidate base names plus transformed variants."""
     _ = niche
-    user_keywords = [_clean_name(keyword.strip()) for keyword in keywords_str.split(",") if keyword.strip()]
+    user_keywords = _normalize_keywords(keywords_str)
     candidates: dict[str, dict[str, str | bool]] = {}
     base_names: list[str] = []
-    loop_count = max(num_per_tier * 6, 24)
+    target_candidate_count = max(num_per_tier * 8, len(user_keywords) * 10, 40)
+    loop_count = max(num_per_tier * 10, 60)
 
-    for _ in range(loop_count):
-        raw_name, method = _build_base_name(word_banks, user_keywords)
-        clean_name = _clean_name(raw_name)
-        if not _is_valid_candidate(clean_name):
-            continue
-        if clean_name not in candidates:
-            candidates[clean_name] = _candidate_record(clean_name, method)
-            base_names.append(clean_name)
+    if user_keywords:
+        for clean_name, method in _build_keyword_base_names(user_keywords, target_candidate_count):
+            if clean_name not in candidates:
+                candidates[clean_name] = _candidate_record(clean_name, method)
+                base_names.append(clean_name)
+
+    if not user_keywords:
+        while len(candidates) < target_candidate_count and len(base_names) < target_candidate_count and loop_count > 0:
+            loop_count -= 1
+            raw_name, method = _build_base_name(word_banks, user_keywords)
+            clean_name = _clean_name(raw_name)
+            if not _is_valid_candidate(clean_name):
+                continue
+            if clean_name not in candidates:
+                candidates[clean_name] = _candidate_record(clean_name, method)
+                base_names.append(clean_name)
 
     for base_name in list(base_names):
         _append_candidate(candidates, _twist_name(base_name), "twist", source_name=base_name)
         _append_candidate(candidates, _cut_name(base_name), "cut", source_name=base_name)
 
-    invent_count = max(4, num_per_tier // 2)
-    for _ in range(invent_count):
-        _append_candidate(candidates, _invent_name(), "invent")
+    if not user_keywords:
+        invent_count = max(4, num_per_tier // 2)
+        for _ in range(invent_count):
+            _append_candidate(candidates, _invent_name(), "invent")
 
     if use_llm:
-        llm_names = llm_creative_boost(niche, list(candidates.keys()), count=num_per_tier)
+        llm_names = llm_creative_boost(
+            niche,
+            list(candidates.keys()),
+            selected_keywords=user_keywords,
+            count=max(num_per_tier, len(user_keywords)),
+        )
         for suggestion in llm_names:
             _append_candidate(candidates, suggestion, "invent")
 

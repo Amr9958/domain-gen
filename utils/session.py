@@ -14,6 +14,11 @@ SESSION_DEFAULTS = {
     "last_categories": {},
     "show_results": False,
     "generating": False,
+    "keywords": "",
+    "keyword_topic": "",
+    "generation_use_llm": False,
+    "generation_notice": "",
+    "last_generation_candidate_count": 0,
 }
 
 

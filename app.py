@@ -24,7 +24,7 @@ from constants import (
     SCORING_PROFILES,
 )
 from generator import generate_domains
-from providers import ai_suggest_words, test_connection
+from providers import ai_suggest_keywords_from_topic, ai_suggest_words, preflight_generation_model, test_connection
 from scoring import evaluate_domain, get_profile
 from storage import add_to_portfolio, get_portfolio, init_db
 from utils.browser import open_namecheap_purchase
@@ -332,8 +332,43 @@ def render_sidebar() -> tuple[list[str], list[str], str, int, list[str], bool, b
     else:
         st.sidebar.caption(f"{len(selected_profiles)} scoring profiles selected.")
 
-    keywords = st.sidebar.text_input("🎯 Keywords (comma separated)", placeholder="e.g. fast, smart, secure")
-    num_per_tier = st.sidebar.slider("Domains per Grade", 5, 50, 15)
+    pending_keywords = st.session_state.pop("pending_keywords", None)
+    if pending_keywords is not None:
+        st.session_state["keywords"] = pending_keywords
+
+    keywords = st.sidebar.text_input(
+        "🎯 Keywords (comma separated)",
+        placeholder="e.g. fast, smart, secure",
+        key="keywords",
+    )
+    topic_prompt = st.sidebar.text_area(
+        "🧠 Topic / Brief for AI Keyword Suggestions",
+        placeholder="e.g. منصة AI تساعد المطاعم على الرد التلقائي والحجوزات",
+        height=90,
+        key="keyword_topic",
+    )
+    if st.sidebar.button("✨ Suggest Keywords with AI", help="Generate keyword seeds from your topic, niches, and selected profiles."):
+        if not topic_prompt.strip():
+            st.sidebar.warning("اكتب جملة أو موضوع أولًا.")
+        else:
+            with st.spinner("جاري اقتراح كلمات مناسبة..."):
+                suggestions = ai_suggest_keywords_from_topic(
+                    topic=topic_prompt,
+                    niches=selected_niches,
+                    profiles=selected_profiles,
+                    existing_keywords=[keyword.strip() for keyword in keywords.split(",") if keyword.strip()],
+                )
+            if suggestions:
+                merged_keywords = deduplicate_words(
+                    [keyword.strip().lower() for keyword in keywords.split(",") if keyword.strip()] + suggestions
+                )
+                st.session_state["pending_keywords"] = ", ".join(merged_keywords)
+                st.sidebar.success(f"✅ تم اقتراح {len(suggestions)} كلمات")
+                st.rerun()
+            else:
+                st.sidebar.error("❌ لم أتمكن من استخراج كلمات مناسبة. تأكد من الـ API Key أو جرّب وصفًا أوضح.")
+    num_per_tier = st.sidebar.slider("Max domains shown per grade", 5, 50, 15)
+    st.sidebar.caption("العدد هنا هو حد أقصى لكل Grade بعد التقييم، وليس إجمالي النتائج قبل الفلترة.")
     extensions = st.sidebar.multiselect("الامتدادات", EXTENSION_OPTIONS, default=DEFAULT_EXTENSIONS)
     use_llm = st.sidebar.checkbox("LLM Creative Boost", value=True)
     use_availability = st.sidebar.checkbox("Heuristic Availability Check", value=True)
@@ -357,8 +392,22 @@ def render_generator_tab(
     niche_labels = ", ".join(niches)
     st.caption(f"Niches: {niche_labels} · Profiles: {profile_labels}")
     render_methodology_status(use_llm=use_llm, use_availability=use_availability)
+    if st.session_state.get("generation_notice"):
+        notice = st.session_state["generation_notice"]
+        if st.session_state.get("generation_use_llm", False):
+            st.info(notice)
+        else:
+            st.warning(notice)
 
     if st.button("🚀 Generate Domains", type="primary"):
+        effective_use_llm = use_llm
+        if use_llm:
+            llm_ready, generation_notice = preflight_generation_model()
+            effective_use_llm = llm_ready
+            st.session_state.generation_notice = generation_notice
+        else:
+            st.session_state.generation_notice = "سيتم التوليد من خلال النظام الداخلي فقط لأن LLM Creative Boost غير مفعّل."
+        st.session_state.generation_use_llm = effective_use_llm
         st.session_state.generating = True
         st.session_state.last_results = []
         st.session_state.show_results = False
@@ -366,11 +415,12 @@ def render_generator_tab(
 
     if st.session_state.get("generating", False):
         with st.spinner("جاري التوليد والتقييم الاحترافي..."):
+            effective_use_llm = st.session_state.get("generation_use_llm", False)
             generated_candidates_map: dict[str, dict] = {}
             for niche in niches:
                 for candidate in generate_domains(
                     niche=niche,
-                    use_llm=use_llm,
+                    use_llm=effective_use_llm,
                     word_banks=st.session_state.word_banks,
                     keywords_str=keywords,
                     num_per_tier=num_per_tier,
@@ -380,6 +430,7 @@ def render_generator_tab(
                         generated_candidates_map[candidate_name] = candidate
 
             generated_candidates = list(generated_candidates_map.values())
+            st.session_state.last_generation_candidate_count = len(generated_candidates)
             categories = {grade: [] for grade in GRADE_ORDER}
             history_rows = []
             appraisal_records: list[dict] = []
@@ -450,6 +501,8 @@ def render_generator_tab(
         all_generated_full: list[str] = []
         comparison_appraisals: list[dict] = []
         status_map: dict[str, str] = {}
+        candidate_count = st.session_state.get("last_generation_candidate_count", 0)
+        st.caption(f"Raw candidate pool before scoring: {candidate_count}")
 
         for grade in GRADE_ORDER:
             items = categories.get(grade, [])[:num_per_tier]
