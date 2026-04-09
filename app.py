@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import Counter
 from datetime import datetime
 
 import pandas as pd
@@ -34,6 +35,54 @@ from utils.word_banks import deduplicate_words, save_word_banks
 
 
 GRADE_ORDER = ["A+", "A", "B", "C", "D", "Reject"]
+
+
+def _normalize_keywords_for_debug(keywords: str) -> list[str]:
+    """Mirror keyword cleanup for lightweight UI debugging."""
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for raw_keyword in keywords.split(","):
+        cleaned = "".join(character for character in raw_keyword.lower().strip() if character.isalpha())
+        if len(cleaned) < 3 or cleaned in seen:
+            continue
+        seen.add(cleaned)
+        normalized.append(cleaned)
+    return normalized
+
+
+def render_generation_debug_panel(keywords: str) -> None:
+    """Show a compact debug view for the generation pipeline."""
+    selected_keywords = _normalize_keywords_for_debug(keywords)
+    last_keywords = st.session_state.get("last_generation_keyword_list", [])
+    method_counts = st.session_state.get("last_generation_method_counts", {})
+    sample_candidates = st.session_state.get("last_generation_sample_candidates", [])
+    llm_route = st.session_state.get("last_llm_status", "not_checked")
+    llm_model = st.session_state.get("last_llm_model_used", "")
+    llm_message = st.session_state.get("generation_notice") or st.session_state.get("last_llm_message", "")
+
+    with st.expander("Debug Panel", expanded=False):
+        col1, col2 = st.columns(2)
+        with col1:
+            st.caption("Current selected keywords")
+            st.code(", ".join(selected_keywords) if selected_keywords else "(none)", language="text")
+            st.caption(f"LLM Creative Boost requested: {'yes' if st.session_state.get('generation_use_llm', False) else 'no / fallback'}")
+        with col2:
+            st.caption("Current LLM route")
+            route_label = llm_route + (f" · {llm_model}" if llm_model else "")
+            st.code(route_label, language="text")
+            if llm_message:
+                st.caption(llm_message)
+
+        st.divider()
+        st.caption("Last generation snapshot")
+        st.caption(f"Last raw candidate count: {st.session_state.get('last_generation_candidate_count', 0)}")
+        st.caption(f"Last keywords used: {', '.join(last_keywords) if last_keywords else '(none)'}")
+        if method_counts:
+            method_summary = ", ".join(f"{method}: {count}" for method, count in sorted(method_counts.items()))
+            st.caption(f"Candidate sources: {method_summary}")
+        if sample_candidates:
+            st.caption("Sample candidates")
+            st.code(", ".join(sample_candidates), language="text")
 
 
 def appraisal_to_dict(appraisal) -> dict:
@@ -392,6 +441,7 @@ def render_generator_tab(
     niche_labels = ", ".join(niches)
     st.caption(f"Niches: {niche_labels} · Profiles: {profile_labels}")
     render_methodology_status(use_llm=use_llm, use_availability=use_availability)
+    render_generation_debug_panel(keywords)
     if st.session_state.get("generation_notice"):
         notice = st.session_state["generation_notice"]
         if st.session_state.get("generation_use_llm", False):
@@ -430,7 +480,14 @@ def render_generator_tab(
                         generated_candidates_map[candidate_name] = candidate
 
             generated_candidates = list(generated_candidates_map.values())
+            st.session_state.last_generation_keyword_list = _normalize_keywords_for_debug(keywords)
             st.session_state.last_generation_candidate_count = len(generated_candidates)
+            st.session_state.last_generation_method_counts = dict(
+                Counter(str(candidate.get("method", "unknown")) for candidate in generated_candidates)
+            )
+            st.session_state.last_generation_sample_candidates = [
+                str(candidate["name"]) for candidate in generated_candidates[:12]
+            ]
             categories = {grade: [] for grade in GRADE_ORDER}
             history_rows = []
             appraisal_records: list[dict] = []

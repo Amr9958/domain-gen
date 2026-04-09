@@ -19,6 +19,9 @@ SESSION_DEFAULTS = {
     "generation_use_llm": False,
     "generation_notice": "",
     "last_generation_candidate_count": 0,
+    "last_generation_method_counts": {},
+    "last_generation_keyword_list": [],
+    "last_generation_sample_candidates": [],
 }
 
 
