@@ -4,7 +4,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from enum import StrEnum
+from enum import Enum
+
+try:
+    from enum import StrEnum
+except ImportError:  # pragma: no cover - Python < 3.11 fallback
+    class StrEnum(str, Enum):
+        """Compatibility fallback for Python 3.10 runtimes."""
 
 
 class SourceType(StrEnum):

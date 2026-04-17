@@ -8,7 +8,7 @@ import pandas as pd
 
 from constants import DB_PATH, PORTFOLIO_STATUS_UNCHECKED
 from core.logging import get_logger
-from repositories import PortfolioEntry, get_portfolio_repository
+from repositories.portfolio import PortfolioEntry, get_portfolio_repository
 
 
 logger = get_logger("storage")

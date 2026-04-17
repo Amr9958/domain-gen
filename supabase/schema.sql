@@ -27,6 +27,7 @@ create table if not exists content_items (
     author text default '',
     language text default 'en',
     content_hash text not null unique,
+    cluster_key text default '',
     published_at timestamptz,
     fetched_at timestamptz not null,
     tags jsonb default '[]'::jsonb,
