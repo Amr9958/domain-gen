@@ -24,7 +24,9 @@ from constants import (
     NICHE_OPTIONS,
     SCORING_PROFILES,
 )
+from core.logging import configure_logging, get_logger
 from generator import generate_domains
+from integrations import get_supabase_manager
 from providers import ai_suggest_keywords_from_topic, ai_suggest_words, preflight_generation_model, test_connection
 from scoring import evaluate_domain, get_profile
 from storage import add_to_portfolio, get_portfolio, init_db
@@ -35,6 +37,7 @@ from utils.word_banks import deduplicate_words, save_word_banks
 
 
 GRADE_ORDER = ["A+", "A", "B", "C", "D", "Reject"]
+logger = get_logger("app")
 
 
 def _normalize_keywords_for_debug(keywords: str) -> list[str]:
@@ -847,9 +850,17 @@ def render_stats_tab() -> None:
 
 def main() -> None:
     """Run the Streamlit application."""
+    configure_logging()
     st.set_page_config(page_title=APP_TITLE, page_icon=APP_ICON, layout=APP_LAYOUT)
     init_db()
     initialize_session_state()
+    supabase_health = get_supabase_manager().health()
+    logger.info(
+        "App startup complete. Supabase enabled=%s configured=%s ready=%s",
+        supabase_health.enabled,
+        supabase_health.configured,
+        supabase_health.client_ready,
+    )
 
     niches, scoring_profiles, keywords, num_per_tier, extensions, use_llm, use_availability = render_sidebar()
     tab1, tab2, tab_fav, tab3, tab4, tab5 = st.tabs([
@@ -876,6 +887,9 @@ def main() -> None:
 
     st.divider()
     st.caption("DomainTrade Pro V5 · Professional Scoring Engine · Unified AI Engine · Portfolio DB")
+
+    if supabase_health.enabled:
+        st.caption(f"Supabase status: {supabase_health.reason}")
 
 
 if __name__ == "__main__":

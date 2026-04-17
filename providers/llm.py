@@ -8,6 +8,7 @@ import streamlit as st
 from google import genai
 from openai import OpenAI
 
+from config.runtime import get_runtime_secret, get_runtime_value
 from constants import DEFAULT_AI_PROVIDER
 
 
@@ -324,13 +325,32 @@ def _set_llm_status(status: str, message: str, model_used: str = "") -> None:
     st.session_state["last_llm_model_used"] = model_used
 
 
+def _resolve_provider_credentials(provider: str) -> tuple[str, str]:
+    """Resolve provider credentials from Streamlit state, secrets, or env."""
+    if provider == XAI_PROVIDER:
+        return (
+            get_runtime_secret("XAI_API_KEY", session_key="xai_key"),
+            get_runtime_value("XAI_MODEL", "grok-3-mini", session_key="xai_model"),
+        )
+    if provider == GEMINI_PROVIDER:
+        return (
+            get_runtime_secret("GEMINI_API_KEY", session_key="gemini_key"),
+            get_runtime_value("GEMINI_MODEL", "gemini-2.0-flash", session_key="gemini_model"),
+        )
+    if provider == OPENROUTER_PROVIDER:
+        return (
+            get_runtime_secret("OPENROUTER_API_KEY", session_key="or_key"),
+            get_runtime_value("OPENROUTER_MODEL", "google/gemini-2.0-flash-001", session_key="or_model"),
+        )
+    return "", ""
+
+
 def call_llm(prompt: str, system: str = "", json_mode: bool = False) -> str:
     """Unified LLM caller for the currently selected provider."""
     provider = st.session_state.get("ai_provider", DEFAULT_AI_PROVIDER)
 
     if provider == XAI_PROVIDER:
-        api_key = st.secrets.get("XAI_API_KEY", st.session_state.get("xai_key", "")).strip()
-        model = st.secrets.get("XAI_MODEL", st.session_state.get("xai_model", "grok-3-mini")).strip()
+        api_key, model = _resolve_provider_credentials(provider)
         if not api_key:
             _set_llm_status("disabled", "لا يوجد API Key صالح لـ xAI. سيتم الاعتماد على النظام الداخلي فقط.")
             return ""
@@ -352,8 +372,7 @@ def call_llm(prompt: str, system: str = "", json_mode: bool = False) -> str:
             return ""
 
     if provider == GEMINI_PROVIDER:
-        api_key = st.secrets.get("GEMINI_API_KEY", st.session_state.get("gemini_key", "")).strip()
-        model = st.secrets.get("GEMINI_MODEL", st.session_state.get("gemini_model", "gemini-2.0-flash")).strip()
+        api_key, model = _resolve_provider_credentials(provider)
         if not api_key:
             _set_llm_status("disabled", "لا يوجد API Key صالح لـ Gemini. سيتم الاعتماد على النظام الداخلي فقط.")
             return ""
@@ -369,11 +388,7 @@ def call_llm(prompt: str, system: str = "", json_mode: bool = False) -> str:
             return ""
 
     if provider == OPENROUTER_PROVIDER:
-        api_key = st.secrets.get("OPENROUTER_API_KEY", st.session_state.get("or_key", "")).strip()
-        model = st.secrets.get(
-            "OPENROUTER_MODEL",
-            st.session_state.get("or_model", "google/gemini-2.0-flash-001"),
-        ).strip()
+        api_key, model = _resolve_provider_credentials(provider)
         if not api_key:
             _set_llm_status("disabled", "لا يوجد API Key صالح لـ OpenRouter. سيتم الاعتماد على النظام الداخلي فقط.")
             return ""

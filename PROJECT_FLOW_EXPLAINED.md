@@ -6,5 +6,3 @@ google-genai
 openpyxl
 namecheap-python
 groq
-python-dotenv
-supabase

@@ -1,13 +1,17 @@
-"""SQLite persistence helpers for the domain portfolio."""
+"""Portfolio persistence helpers with SQLite-first compatibility."""
 
 from __future__ import annotations
 
 import sqlite3
-from datetime import datetime
 
 import pandas as pd
 
 from constants import DB_PATH, PORTFOLIO_STATUS_UNCHECKED
+from core.logging import get_logger
+from repositories import PortfolioEntry, get_portfolio_repository
+
+
+logger = get_logger("storage")
 
 
 CREATE_DOMAINS_TABLE_SQL = '''CREATE TABLE IF NOT EXISTS domains (
@@ -41,6 +45,17 @@ EXPECTED_COLUMNS = {
     "purchased_date": "TEXT",
 }
 
+
+def _sync_portfolio_entry_to_cloud(entry: PortfolioEntry) -> None:
+    """Mirror a local portfolio insert to Supabase when cloud mode is enabled."""
+    cloud_repository = get_portfolio_repository(prefer_cloud=True)
+    if cloud_repository.__class__.__name__ == "SupabasePortfolioRepository":
+        synced = cloud_repository.add(entry)
+        if synced:
+            logger.info("Synced domain to Supabase portfolio: %s", entry.full_domain)
+        else:
+            logger.info("Supabase sync skipped or failed for: %s", entry.full_domain)
+
 def get_connection(db_path: str = DB_PATH) -> sqlite3.Connection:
     """Create a SQLite connection to the portfolio database."""
     return sqlite3.connect(db_path)
@@ -59,6 +74,7 @@ def init_db(db_path: str = DB_PATH) -> None:
                     f"ALTER TABLE domains ADD COLUMN {column_name} {column_type}"
                 )
         conn.commit()
+    logger.info("SQLite portfolio database ready at %s", db_path)
 
 
 def add_to_portfolio(
@@ -78,36 +94,28 @@ def add_to_portfolio(
 
     Returns `True` when the row is inserted and `False` when it already exists.
     """
-    query = """INSERT INTO domains
-        (full_domain, name, ext, niche, appraisal_tier, appraisal_value, score, scoring_profile, explanation, status, generated_date)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"""
-    values = (
-        full_domain,
-        name,
-        ext,
-        niche,
-        appraisal_tier,
-        appraisal_value,
-        score,
-        scoring_profile,
-        explanation,
-        status,
-        datetime.now().strftime("%Y-%m-%d %H:%M"),
+    entry = PortfolioEntry.create(
+        full_domain=full_domain,
+        name=name,
+        ext=ext,
+        niche=niche,
+        appraisal_tier=appraisal_tier,
+        appraisal_value=appraisal_value,
+        score=score,
+        scoring_profile=scoring_profile,
+        explanation=explanation,
+        status=status,
     )
-
-    try:
-        with get_connection(db_path) as conn:
-            conn.execute(query, values)
-            conn.commit()
-        return True
-    except sqlite3.IntegrityError:
-        return False
+    inserted = get_portfolio_repository(prefer_cloud=False).add(entry)
+    if inserted:
+        logger.info("Added domain to portfolio: %s", full_domain)
+        _sync_portfolio_entry_to_cloud(entry)
+    else:
+        logger.info("Skipped duplicate portfolio insert: %s", full_domain)
+    return inserted
 
 
 def get_portfolio(db_path: str = DB_PATH) -> pd.DataFrame:
     """Fetch the stored portfolio ordered by score and generation date."""
-    with get_connection(db_path) as conn:
-        return pd.read_sql_query(
-            "SELECT * FROM domains ORDER BY score DESC, generated_date DESC",
-            conn,
-        )
+    _ = db_path
+    return get_portfolio_repository(prefer_cloud=False).list_all()
