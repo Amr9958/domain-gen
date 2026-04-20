@@ -16,12 +16,19 @@ SESSION_DEFAULTS = {
     "generating": False,
     "keywords": "",
     "keyword_topic": "",
+    "geo_context": "",
+    "selected_generation_styles": ["auto"],
     "generation_use_llm": False,
     "generation_notice": "",
     "last_generation_candidate_count": 0,
     "last_generation_method_counts": {},
     "last_generation_keyword_list": [],
+    "last_generation_geo_context": "",
+    "last_generation_style_list": [],
     "last_generation_sample_candidates": [],
+    "trend_keyword_refinement": [],
+    "trend_shortlist_refinement": [],
+    "trend_theme_refinement": [],
 }
 
 

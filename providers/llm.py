@@ -16,6 +16,49 @@ XAI_PROVIDER = "xAI (Grok)"
 GEMINI_PROVIDER = "Google Gemini"
 OPENROUTER_PROVIDER = "OpenRouter"
 OPENROUTER_FREE_MODEL = "openrouter/free"
+OFFLINE_ENGINE_MESSAGE = "سيتم الاعتماد على محرك أوفلاين داخلي محسّن متعدد الأنماط."
+AI_DOMAIN_HINTS = {
+    "agent", "ai", "assistant", "automation", "autonomous", "bot", "copilot", "inference",
+    "llm", "memory", "model", "neural", "orchestration", "prompt", "reasoning", "robot",
+    "token", "vector", "vision", "voice", "workflow",
+}
+GEO_DOMAIN_HINTS = {
+    "cairo", "dubai", "egypt", "gulf", "ksa", "london", "miami", "riyadh",
+    "saudi", "texas", "uae", "uk", "usa",
+}
+DOMAIN_STYLE_GUIDANCE = {
+    "exact": "Exact-match / descriptive names with clear buyer intent and commercial clarity.",
+    "brandable": "Fundable startup-style brandables that sound like real products or companies.",
+    "ai_futuristic": "AI-native or futuristic names for models, agents, copilots, infra, and automation.",
+    "hybrid": "Hybrid names that blend a commercial keyword with a premium brand-like suffix or prefix.",
+    "short": "Short premium-feeling names with clean phonetics and strong memorability.",
+    "outbound": "Easy-to-pitch names with obvious end users and a simple buyer story.",
+    "geo": "Geo-targeted names only when the provided keywords already include a real place.",
+}
+DOMAIN_GENERATION_SYSTEM_PROMPT = """You are a world-class domain strategist, startup naming expert, SEO analyst, and domain investor with 20 years of experience.
+
+Your task is to generate premium domain concepts with real commercial value, buyer clarity, and resale potential.
+
+Follow these rules:
+- prioritize quality over quantity
+- prefer .com by default; .ai or .io only when strongly justified by the concept
+- avoid awkward grammar, weak random blends, spammy phrasing, and low-trust wording
+- avoid trademark-heavy names and names contaminated by major brands
+- avoid simply adding AI to random words
+- generate names that real startups, SaaS tools, agencies, local businesses, or product teams could actually use
+- every name must be easy to read, easy to type, and commercially credible
+
+When relevant, use these naming modes:
+- exact / descriptive
+- brandable
+- AI / futuristic
+- hybrid keyword + brand element
+- short premium
+- outbound-friendly
+- geo, but only when an explicit place already exists in the user input
+
+Return JSON only. Do not include commentary outside the requested JSON schema.
+"""
 TOPIC_KEYWORD_SYSTEM_PROMPT = """You are a strict, professional domain opportunity analyst with 20+ years of domain investing experience, plus expertise in startup naming, product positioning, software architecture, and trend intelligence.
 
 Your job is NOT to summarize news. Your job is to convert trends, product launches, technical signals, and emerging market language into INVESTABLE domain opportunities with real resale logic.
@@ -316,6 +359,110 @@ Never flood me with junk. Never praise weak names. Never give random brainstormi
 FINAL RULE:
 Act like a strict, professional, buyer-aware domain investor. Be selective. Be commercially realistic. Be linguistically sharp. Be risk-aware. Be resale-focused.
 When quality is low, output fewer names. Zero strong names is better than ten weak names."""
+SHORTLIST_REFINEMENT_SYSTEM_PROMPT = """You are a strict domain-investor review layer used only after a shortlist has already been generated.
+
+Your task is not to brainstorm new names. Your task is to review an existing shortlist of domains and decide which names deserve stronger investor attention.
+
+Rules:
+- Be selective and conservative
+- Do not invent extra domains
+- Do not inflate scores
+- Prioritize buyer logic, naming quality, linguistic strength, resale realism, and risk control
+- Penalize names that are too trend-dependent, too tied to one source brand, or awkward for real buyers
+- Reward names that feel broad enough for real startup or end-user demand
+
+Return JSON only with this shape:
+{
+  "refined_domains": [
+    {
+      "domain": "example.com",
+      "investor_score": 8.4,
+      "verdict": "buy_now",
+      "priority": "high",
+      "buyer_angle": "AI infra startup",
+      "why_good": "short explanation",
+      "risk_summary": "short explanation"
+    }
+  ]
+}
+
+Allowed verdict values:
+- buy_now
+- hold_watch
+- reject
+
+Allowed priority values:
+- high
+- medium
+- low
+"""
+THEME_REFINEMENT_SYSTEM_PROMPT = """You are a strict trend-theme review layer used only after heuristic processing has already extracted candidate themes.
+
+Your task is not to invent new themes. Your task is to review existing themes and decide which ones deserve stronger investor attention for downstream domain generation.
+
+Rules:
+- Be selective and conservative
+- Do not create extra themes
+- Focus on commercial breadth, buyer logic, naming potential, and trend durability
+- Penalize themes that are too narrow, too source-specific, or too dependent on one brand/entity
+- Reward themes that can support multiple startups, products, or buyer segments
+
+Return JSON only with this shape:
+{
+  "refined_themes": [
+    {
+      "theme": "Agent Security",
+      "confidence": 8.1,
+      "action": "promote",
+      "suggested_niche": "Tech & AI",
+      "buyer_angle": "security automation startups",
+      "domain_direction": "agent governance, runtime protection, policy tooling",
+      "why_now": "short explanation",
+      "risk_summary": "short explanation"
+    }
+  ]
+}
+
+Allowed action values:
+- promote
+- watch
+- drop
+"""
+KEYWORD_REFINEMENT_SYSTEM_PROMPT = """You are a strict keyword-intelligence review layer used only after heuristic extraction has already produced candidate keyword insights.
+
+Your task is not to invent new keywords. Your task is to review existing keyword rows and decide which ones should be promoted, kept, or dropped for downstream domain generation.
+
+Rules:
+- Be selective and conservative
+- Do not create extra keywords
+- Focus on commercial clarity, naming usefulness, buyer fit, and reuse potential
+- Penalize keywords that are too generic, too awkward, too source-specific, or too trademark-contaminated
+- Reward keywords that can anchor brandable or descriptive domain opportunities
+
+Return JSON only with this shape:
+{
+  "refined_keywords": [
+    {
+      "keyword": "agentguard",
+      "theme": "Agent Security",
+      "confidence": 7.8,
+      "commercial_fit": 8.0,
+      "naming_fit": 7.4,
+      "action": "promote",
+      "suggested_keyword_type": "Naming Component",
+      "suggested_niche": "Tech & AI",
+      "buyer_angle": "security tooling startups",
+      "why_good": "short explanation",
+      "risk_summary": "short explanation"
+    }
+  ]
+}
+
+Allowed action values:
+- promote
+- keep
+- drop
+"""
 
 
 def _set_llm_status(status: str, message: str, model_used: str = "") -> None:
@@ -352,7 +499,7 @@ def call_llm(prompt: str, system: str = "", json_mode: bool = False) -> str:
     if provider == XAI_PROVIDER:
         api_key, model = _resolve_provider_credentials(provider)
         if not api_key:
-            _set_llm_status("disabled", "لا يوجد API Key صالح لـ xAI. سيتم الاعتماد على النظام الداخلي فقط.")
+            _set_llm_status("disabled", f"لا يوجد API Key صالح لـ xAI. {OFFLINE_ENGINE_MESSAGE}")
             return ""
         try:
             client = OpenAI(api_key=api_key, base_url="https://api.x.ai/v1")
@@ -367,14 +514,14 @@ def call_llm(prompt: str, system: str = "", json_mode: bool = False) -> str:
             _set_llm_status("direct", f"سيتم استخدام xAI بالموديل `{model}` أثناء التوليد.", model)
             return response.choices[0].message.content
         except Exception as exc:
-            _set_llm_status("internal_only", f"تعذر استخدام موديل xAI `{model}`. سيتم التوليد من خلال النظام الداخلي فقط.")
+            _set_llm_status("internal_only", f"تعذر استخدام موديل xAI `{model}`. {OFFLINE_ENGINE_MESSAGE}")
             st.sidebar.error(f"xAI Error: {exc}")
             return ""
 
     if provider == GEMINI_PROVIDER:
         api_key, model = _resolve_provider_credentials(provider)
         if not api_key:
-            _set_llm_status("disabled", "لا يوجد API Key صالح لـ Gemini. سيتم الاعتماد على النظام الداخلي فقط.")
+            _set_llm_status("disabled", f"لا يوجد API Key صالح لـ Gemini. {OFFLINE_ENGINE_MESSAGE}")
             return ""
         try:
             client = genai.Client(api_key=api_key)
@@ -383,14 +530,14 @@ def call_llm(prompt: str, system: str = "", json_mode: bool = False) -> str:
             _set_llm_status("direct", f"سيتم استخدام Gemini بالموديل `{model}` أثناء التوليد.", model)
             return response.text.strip()
         except Exception as exc:
-            _set_llm_status("internal_only", f"تعذر استخدام موديل Gemini `{model}`. سيتم التوليد من خلال النظام الداخلي فقط.")
+            _set_llm_status("internal_only", f"تعذر استخدام موديل Gemini `{model}`. {OFFLINE_ENGINE_MESSAGE}")
             st.sidebar.error(f"Gemini Error: {exc}")
             return ""
 
     if provider == OPENROUTER_PROVIDER:
         api_key, model = _resolve_provider_credentials(provider)
         if not api_key:
-            _set_llm_status("disabled", "لا يوجد API Key صالح لـ OpenRouter. سيتم الاعتماد على النظام الداخلي فقط.")
+            _set_llm_status("disabled", f"لا يوجد API Key صالح لـ OpenRouter. {OFFLINE_ENGINE_MESSAGE}")
             return ""
         client = OpenAI(api_key=api_key, base_url="https://openrouter.ai/api/v1")
 
@@ -422,18 +569,18 @@ def call_llm(prompt: str, system: str = "", json_mode: bool = False) -> str:
                 except Exception as fallback_exc:
                     _set_llm_status(
                         "internal_only",
-                        f"تعذر استخدام OpenRouter بالموديل الأساسي والمجاني. سيتم التوليد من خلال النظام الداخلي فقط.",
+                        f"تعذر استخدام OpenRouter بالموديل الأساسي والمجاني. {OFFLINE_ENGINE_MESSAGE}",
                     )
                     st.sidebar.error(f"OpenRouter Error: {fallback_exc}")
                     return ""
             _set_llm_status(
                 "internal_only",
-                f"تعذر استخدام موديل OpenRouter `{model}`. سيتم التوليد من خلال النظام الداخلي فقط.",
+                f"تعذر استخدام موديل OpenRouter `{model}`. {OFFLINE_ENGINE_MESSAGE}",
             )
             st.sidebar.error(f"OpenRouter Error: {primary_exc}")
             return ""
 
-    _set_llm_status("internal_only", "مزود الذكاء الاصطناعي غير معروف. سيتم التوليد من خلال النظام الداخلي فقط.")
+    _set_llm_status("internal_only", f"مزود الذكاء الاصطناعي غير معروف. {OFFLINE_ENGINE_MESSAGE}")
     return ""
 
 
@@ -453,25 +600,191 @@ def parse_json_response(text: str, key: str) -> list:
         return []
 
 
+def _normalize_bounded_score(value: object, maximum: float = 10.0) -> float:
+    """Safely normalize arbitrary numeric-looking values into a bounded score."""
+    try:
+        parsed_value = float(value or 0)
+    except (TypeError, ValueError):
+        parsed_value = 0.0
+    return round(max(0.0, min(maximum, parsed_value)), 1)
+
+
+def _choose_domain_generation_styles(niche: str, selected_keywords: list[str]) -> list[str]:
+    """Pick the most relevant naming styles for the current niche and keyword context."""
+    normalized_niche = niche.strip().lower()
+    keyword_set = {keyword.strip().lower() for keyword in selected_keywords if keyword.strip()}
+    signal_terms = keyword_set | set(normalized_niche.replace("&", " ").replace("/", " ").split())
+
+    styles: list[str] = []
+
+    if signal_terms & AI_DOMAIN_HINTS or normalized_niche == "tech & ai":
+        styles.extend(["ai_futuristic", "hybrid", "brandable", "short", "outbound"])
+    elif normalized_niche == "finance & saas":
+        styles.extend(["hybrid", "brandable", "exact", "short", "outbound"])
+    elif normalized_niche in {"health & wellness", "real estate"}:
+        styles.extend(["exact", "hybrid", "outbound", "brandable", "short"])
+    else:
+        styles.extend(["brandable", "hybrid", "exact", "short", "outbound"])
+
+    if keyword_set & GEO_DOMAIN_HINTS:
+        styles.append("geo")
+
+    return list(dict.fromkeys(styles))
+
+
+def _normalize_requested_domain_styles(requested_styles: list[str] | None) -> list[str]:
+    """Normalize explicit UI-selected naming styles while keeping auto exclusive."""
+    if not requested_styles:
+        return ["auto"]
+
+    cleaned_styles: list[str] = []
+    seen: set[str] = set()
+    for style in requested_styles:
+        normalized_style = str(style or "").strip().lower()
+        if not normalized_style or normalized_style in seen:
+            continue
+        seen.add(normalized_style)
+        cleaned_styles.append(normalized_style)
+
+    if not cleaned_styles:
+        return ["auto"]
+    if "auto" in cleaned_styles and len(cleaned_styles) > 1:
+        cleaned_styles = [style for style in cleaned_styles if style != "auto"]
+    return cleaned_styles or ["auto"]
+
+
+def _normalize_geo_context_values(geo_context: str | None) -> list[str]:
+    """Normalize explicit geo input for prompt routing and instructions."""
+    if not geo_context:
+        return []
+
+    values: list[str] = []
+    seen: set[str] = set()
+    for raw_value in geo_context.split(","):
+        cleaned_value = raw_value.strip().lower()
+        if len(cleaned_value) < 2 or cleaned_value in seen:
+            continue
+        seen.add(cleaned_value)
+        values.append(cleaned_value)
+    return values
+
+
+def _build_domain_generation_prompt(
+    niche: str,
+    existing: list[str],
+    selected_keywords: list[str] | None = None,
+    requested_styles: list[str] | None = None,
+    geo_context: str = "",
+    count: int = 8,
+) -> tuple[str, str]:
+    """Build a richer domain-generation prompt inspired by investor-style naming modes."""
+    cleaned_keywords = [keyword.strip().lower() for keyword in (selected_keywords or []) if keyword.strip()]
+    normalized_geo_values = _normalize_geo_context_values(geo_context)
+    normalized_requested_styles = _normalize_requested_domain_styles(requested_styles)
+    if normalized_requested_styles == ["auto"]:
+        chosen_styles = _choose_domain_generation_styles(niche, cleaned_keywords)
+        if normalized_geo_values and "geo" not in chosen_styles:
+            chosen_styles.append("geo")
+    else:
+        chosen_styles = [style for style in normalized_requested_styles if style in DOMAIN_STYLE_GUIDANCE]
+    keyword_context = ", ".join(cleaned_keywords[:20]) or "none provided"
+    geo_context_text = ", ".join(normalized_geo_values) or "none provided"
+    avoid_context = ", ".join(existing[:20]) if existing else "none"
+    style_instructions = "\n".join(
+        f"- {style}: {DOMAIN_STYLE_GUIDANCE[style]}"
+        for style in chosen_styles
+        if style in DOMAIN_STYLE_GUIDANCE
+    )
+    geo_guardrail = (
+        "Geo names are allowed because the input already contains an explicit place."
+        if "geo" in chosen_styles
+        else "Do not invent geo domains unless a real location is explicitly present in the provided keywords."
+    )
+    user_prompt = f"""Generate {count} unique domain concepts for this niche: {niche}
+
+Selected keywords:
+- {keyword_context}
+
+Explicit geo context:
+- {geo_context_text}
+
+Preferred naming styles for this request:
+{style_instructions}
+
+Commercial objectives:
+- maximize resale potential
+- keep clear buyer intent or startup usability
+- produce names that feel trustworthy and commercially deployable
+- keep the output anchored to the niche and provided keywords
+- if geo names are requested, anchor them to the explicit geo context first
+
+Hard constraints:
+- avoid duplicates
+- avoid these existing names: {avoid_context}
+- avoid hyphens and numbers
+- avoid obvious trademark conflicts
+- avoid awkward joins, weak grammar, and low-quality random blends
+- keep most names within roughly 4-14 letters before the extension when possible
+- {geo_guardrail}
+
+Return ONLY JSON with this shape:
+{{"domains": [{{"name": "example", "style": "hybrid"}}, {{"name": "another", "style": "brandable"}}]}}
+"""
+    return DOMAIN_GENERATION_SYSTEM_PROMPT, user_prompt
+
+
+def _normalize_llm_domain_suggestions(raw_items: list[object]) -> list[dict[str, str]]:
+    """Normalize LLM JSON output into generator-friendly candidate records."""
+    suggestions: list[dict[str, str]] = []
+    seen: set[str] = set()
+    known_suffixes = (".com", ".ai", ".io", ".net", ".co", ".org", ".app", ".dev")
+
+    for item in raw_items:
+        if isinstance(item, dict):
+            raw_name = str(item.get("name") or item.get("domain") or "").strip().lower()
+            raw_style = str(item.get("style") or item.get("category") or "llm").strip().lower()
+        else:
+            raw_name = str(item or "").strip().lower()
+            raw_style = "llm"
+
+        if not raw_name:
+            continue
+
+        for suffix in known_suffixes:
+            if raw_name.endswith(suffix):
+                raw_name = raw_name[: -len(suffix)]
+                break
+
+        normalized_name = raw_name.replace(" ", "")
+        if not normalized_name or normalized_name in seen:
+            continue
+        seen.add(normalized_name)
+
+        normalized_style = raw_style.replace("-", "_").replace(" ", "_") or "llm"
+        suggestions.append({"name": normalized_name, "method": normalized_style})
+
+    return suggestions
+
+
 def llm_creative_boost(
     niche: str,
     existing: list[str],
     selected_keywords: list[str] | None = None,
+    requested_styles: list[str] | None = None,
+    geo_context: str = "",
     count: int = 8,
-) -> list[str]:
-    """Ask the configured LLM for additional brandable domain ideas."""
-    cleaned_keywords = [keyword.strip().lower() for keyword in (selected_keywords or []) if keyword.strip()]
-    keyword_context = ", ".join(cleaned_keywords[:20])
-    prompt = (
-        f"Generate {count} unique, brandable domain names for the '{niche}' niche. "
-        f"Selected keywords: {keyword_context or 'none provided'}. "
-        "Stay tightly anchored to the selected keywords and direct commercial variations derived from them. "
-        "Do not drift into unrelated naming territory. "
-        f"Avoid: {existing[:20]}. Focus on short (5-14 chars), memorable names. "
-        f"Return ONLY a JSON object: {{\"domains\": [\"name1\", \"name2\", ...]}}"
+) -> list[dict[str, str]]:
+    """Ask the configured LLM for extra domain ideas across the most relevant naming styles."""
+    system, prompt = _build_domain_generation_prompt(
+        niche=niche,
+        existing=existing,
+        selected_keywords=selected_keywords,
+        requested_styles=requested_styles,
+        geo_context=geo_context,
+        count=count,
     )
-    text = call_llm(prompt, json_mode=True)
-    return [name.lower().replace(" ", "") for name in parse_json_response(text, "domains")]
+    text = call_llm(prompt, system=system, json_mode=True)
+    return _normalize_llm_domain_suggestions(parse_json_response(text, "domains"))
 
 
 def preflight_generation_model() -> tuple[bool, str]:
@@ -480,7 +793,7 @@ def preflight_generation_model() -> tuple[bool, str]:
     message = st.session_state.get("last_llm_message", "")
     if result:
         return True, message or "سيتم استخدام الذكاء الاصطناعي أثناء التوليد."
-    return False, message or "تعذر استخدام الذكاء الاصطناعي. سيتم التوليد من خلال النظام الداخلي فقط."
+    return False, message or f"تعذر استخدام الذكاء الاصطناعي. {OFFLINE_ENGINE_MESSAGE}"
 
 
 def ai_suggest_words(niche: str, category: str, current_words: list[str]) -> list[str]:
@@ -538,6 +851,219 @@ def ai_suggest_keywords_from_topic(
         for keyword in raw_keywords
         if keyword and 2 <= len(keyword.replace(" ", "")) <= 20 and keyword.replace(" ", "").lower().strip() not in existing
     ]
+
+
+def ai_refine_shortlist_domains(
+    shortlist_rows: list[dict[str, object]],
+    *,
+    limit: int = 8,
+) -> list[dict[str, object]]:
+    """Use the configured LLM to refine only the strongest shortlist candidates."""
+    if not shortlist_rows:
+        return []
+
+    trimmed_rows = shortlist_rows[: max(1, min(limit, 10))]
+    compact_rows: list[dict[str, object]] = []
+    for row in trimmed_rows:
+        compact_rows.append(
+            {
+                "domain": str(row.get("Domain") or ""),
+                "theme": str(row.get("Theme") or ""),
+                "keyword": str(row.get("Keyword") or ""),
+                "niche": str(row.get("Niche") or ""),
+                "buyer_type": str(row.get("Buyer Type") or ""),
+                "score": row.get("Score") or "",
+                "grade": str(row.get("Grade") or ""),
+                "profile": str(row.get("Profile") or ""),
+                "style": str(row.get("Style") or ""),
+                "rationale": str(row.get("Rationale") or ""),
+                "risk_notes": str(row.get("Risk Notes") or ""),
+            }
+        )
+
+    prompt = (
+        "Review this shortlisted domain set and refine it like a strict investor. "
+        "Do not generate new names. Only evaluate the provided shortlist. "
+        f"Return at most {len(compact_rows)} reviewed rows.\n\n"
+        f"Shortlist JSON:\n{json.dumps(compact_rows, ensure_ascii=True)}"
+    )
+    text = call_llm(prompt, system=SHORTLIST_REFINEMENT_SYSTEM_PROMPT, json_mode=True)
+    raw_items = parse_json_response(text, "refined_domains")
+
+    normalized_items: list[dict[str, object]] = []
+    seen_domains: set[str] = set()
+    valid_domains = {str(row.get("Domain") or "") for row in trimmed_rows}
+    for item in raw_items:
+        if not isinstance(item, dict):
+            continue
+        domain = str(item.get("domain") or "").strip()
+        if not domain or domain not in valid_domains or domain in seen_domains:
+            continue
+        seen_domains.add(domain)
+
+        try:
+            investor_score = float(item.get("investor_score") or 0)
+        except (TypeError, ValueError):
+            investor_score = 0.0
+
+        verdict = str(item.get("verdict") or "hold_watch").strip().lower()
+        if verdict not in {"buy_now", "hold_watch", "reject"}:
+            verdict = "hold_watch"
+
+        priority = str(item.get("priority") or "medium").strip().lower()
+        if priority not in {"high", "medium", "low"}:
+            priority = "medium"
+
+        normalized_items.append(
+            {
+                "domain": domain,
+                "investor_score": _normalize_bounded_score(investor_score),
+                "verdict": verdict,
+                "priority": priority,
+                "buyer_angle": str(item.get("buyer_angle") or "").strip(),
+                "why_good": str(item.get("why_good") or "").strip(),
+                "risk_summary": str(item.get("risk_summary") or "").strip(),
+            }
+        )
+    return normalized_items
+
+
+def ai_refine_themes(
+    theme_rows: list[dict[str, object]],
+    *,
+    limit: int = 8,
+) -> list[dict[str, object]]:
+    """Use the configured LLM to review only the current visible theme slice."""
+    if not theme_rows:
+        return []
+
+    trimmed_rows = theme_rows[: max(1, min(limit, 10))]
+    compact_rows: list[dict[str, object]] = []
+    for row in trimmed_rows:
+        compact_rows.append(
+            {
+                "theme": str(row.get("Theme") or ""),
+                "classification": str(row.get("Classification") or ""),
+                "momentum": row.get("Momentum") or "",
+                "signals": row.get("Signals") or "",
+                "source_types": str(row.get("Source Types") or ""),
+                "source_tags": str(row.get("Source Tags") or ""),
+                "source_entities": str(row.get("Source Entities") or ""),
+                "related_terms": str(row.get("Related Terms") or ""),
+                "description": str(row.get("Description") or ""),
+            }
+        )
+
+    prompt = (
+        "Review this visible theme slice like a strict investor-facing trend analyst. "
+        "Do not create new themes. Only evaluate the provided theme rows. "
+        f"Return at most {len(compact_rows)} reviewed rows.\n\n"
+        f"Theme JSON:\n{json.dumps(compact_rows, ensure_ascii=True)}"
+    )
+    text = call_llm(prompt, system=THEME_REFINEMENT_SYSTEM_PROMPT, json_mode=True)
+    raw_items = parse_json_response(text, "refined_themes")
+
+    normalized_items: list[dict[str, object]] = []
+    seen_themes: set[str] = set()
+    valid_themes = {str(row.get("Theme") or "") for row in trimmed_rows}
+    for item in raw_items:
+        if not isinstance(item, dict):
+            continue
+        theme = str(item.get("theme") or "").strip()
+        if not theme or theme not in valid_themes or theme in seen_themes:
+            continue
+        seen_themes.add(theme)
+
+        action = str(item.get("action") or "watch").strip().lower()
+        if action not in {"promote", "watch", "drop"}:
+            action = "watch"
+
+        normalized_items.append(
+            {
+                "theme": theme,
+                "confidence": _normalize_bounded_score(item.get("confidence")),
+                "action": action,
+                "suggested_niche": str(item.get("suggested_niche") or "").strip(),
+                "buyer_angle": str(item.get("buyer_angle") or "").strip(),
+                "domain_direction": str(item.get("domain_direction") or "").strip(),
+                "why_now": str(item.get("why_now") or "").strip(),
+                "risk_summary": str(item.get("risk_summary") or "").strip(),
+            }
+        )
+    return normalized_items
+
+
+def ai_refine_keywords(
+    keyword_rows: list[dict[str, object]],
+    *,
+    limit: int = 10,
+) -> list[dict[str, object]]:
+    """Use the configured LLM to review only the current visible keyword slice."""
+    if not keyword_rows:
+        return []
+
+    trimmed_rows = keyword_rows[: max(1, min(limit, 12))]
+    compact_rows: list[dict[str, object]] = []
+    for row in trimmed_rows:
+        compact_rows.append(
+            {
+                "keyword": str(row.get("Keyword") or ""),
+                "type": str(row.get("Type") or ""),
+                "theme": str(row.get("Theme") or ""),
+                "niche": str(row.get("Niche") or ""),
+                "buyer_type": str(row.get("Buyer Type") or ""),
+                "commercial": row.get("Commercial") or "",
+                "novelty": row.get("Novelty") or "",
+                "brandability": row.get("Brandability") or "",
+                "notes": str(row.get("Notes") or ""),
+            }
+        )
+
+    prompt = (
+        "Review this visible keyword-intelligence slice like a strict investor-facing naming analyst. "
+        "Do not create new keywords. Only evaluate the provided keyword rows. "
+        f"Return at most {len(compact_rows)} reviewed rows.\n\n"
+        f"Keyword JSON:\n{json.dumps(compact_rows, ensure_ascii=True)}"
+    )
+    text = call_llm(prompt, system=KEYWORD_REFINEMENT_SYSTEM_PROMPT, json_mode=True)
+    raw_items = parse_json_response(text, "refined_keywords")
+
+    normalized_items: list[dict[str, object]] = []
+    seen_pairs: set[tuple[str, str]] = set()
+    valid_pairs = {
+        (str(row.get("Keyword") or ""), str(row.get("Theme") or ""))
+        for row in trimmed_rows
+    }
+    for item in raw_items:
+        if not isinstance(item, dict):
+            continue
+        keyword = str(item.get("keyword") or "").strip()
+        theme = str(item.get("theme") or "").strip()
+        key_pair = (keyword, theme)
+        if not keyword or not theme or key_pair not in valid_pairs or key_pair in seen_pairs:
+            continue
+        seen_pairs.add(key_pair)
+
+        action = str(item.get("action") or "keep").strip().lower()
+        if action not in {"promote", "keep", "drop"}:
+            action = "keep"
+
+        normalized_items.append(
+            {
+                "keyword": keyword,
+                "theme": theme,
+                "confidence": _normalize_bounded_score(item.get("confidence")),
+                "commercial_fit": _normalize_bounded_score(item.get("commercial_fit")),
+                "naming_fit": _normalize_bounded_score(item.get("naming_fit")),
+                "action": action,
+                "suggested_keyword_type": str(item.get("suggested_keyword_type") or "").strip(),
+                "suggested_niche": str(item.get("suggested_niche") or "").strip(),
+                "buyer_angle": str(item.get("buyer_angle") or "").strip(),
+                "why_good": str(item.get("why_good") or "").strip(),
+                "risk_summary": str(item.get("risk_summary") or "").strip(),
+            }
+        )
+    return normalized_items
 
 
 def test_connection(provider_name: str, api_key: str, model: str) -> tuple[bool, str]:

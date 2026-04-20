@@ -1,0 +1,8 @@
+{"job_name": "ingest_signals", "started_at": "2026-04-18T21:35:33.688600", "status": "running", "run_id": "62b9b85d07234367adeffc1f485b93f8", "ended_at": null, "notes": "Phase 2 raw signal ingestion"}
+{"job_name": "ingest_signals", "started_at": "2026-04-18T21:35:34.369903", "status": "running", "run_id": "ed318c05b2174344a764e9af14eb3445", "ended_at": null, "notes": "Phase 2 raw signal ingestion"}
+{"job_name": "generate_domain_ideas", "started_at": "2026-04-18T21:35:44.420867", "status": "running", "run_id": "2e391c2656f44e16af50881af414411f", "ended_at": null, "notes": "Generate scored domain opportunities"}
+{"job_name": "generate_domain_ideas", "started_at": "2026-04-18T21:35:44.420867", "status": "completed", "run_id": "2e391c2656f44e16af50881af414411f", "ended_at": "2026-04-18T21:35:44.421313", "notes": "No themes or keyword insights found."}
+{"job_name": "ingest_signals", "started_at": "2026-04-18T21:35:33.688600", "status": "completed", "run_id": "62b9b85d07234367adeffc1f485b93f8", "ended_at": "2026-04-18T21:35:51.479487", "notes": "Ingested=39 raw items"}
+{"job_name": "ingest_signals", "started_at": "2026-04-18T21:35:34.369903", "status": "completed", "run_id": "ed318c05b2174344a764e9af14eb3445", "ended_at": "2026-04-18T21:35:51.541068", "notes": "Ingested=39 raw items"}
+{"job_name": "ingest_signals", "started_at": "2026-04-20T13:14:35.846017", "status": "running", "run_id": "822e06dc4d4449a3b89260fa5ad35636", "ended_at": null, "notes": "Phase 2 raw signal ingestion"}
+{"job_name": "ingest_signals", "started_at": "2026-04-20T13:14:35.846017", "status": "completed", "run_id": "822e06dc4d4449a3b89260fa5ad35636", "ended_at": "2026-04-20T13:14:53.313148", "notes": "Ingested=40 raw items"}

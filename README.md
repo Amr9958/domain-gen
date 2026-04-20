@@ -34,7 +34,26 @@ This project is not intended to be:
 
 ## Current State
 
-Today, the app works as a domain generation and evaluation system.
+Today, the repository works as both:
+
+- a domain generation and evaluation system
+- a trend-to-domain intelligence review system
+
+Alongside the original Streamlit workflow, the project now includes a broader trend-intelligence pipeline through Phase 8 with:
+
+- raw ingestion jobs for Hacker News, GitHub, and GNews
+- a separate processing job for cleaning, deduplication, clustering, and heuristic classification
+- theme extraction with cross-run consolidation and raw/processed persistence metadata
+- structured source tagging on themes via source names, source types, tags, and source entities
+- keyword intelligence with niche and buyer hints
+- a scored domain-opportunity job with `Buy / Watch / Skip` plus `shortlist / watchlist / rejected` review buckets
+- source-aware exact-match and trademark-risk adjustments for generated domain ideas
+- collector retry/backoff safety for transient API failures
+- an integrated `Trends` tab in Streamlit for running the pipeline and reviewing outputs
+- standalone Streamlit pages for `Trend Overview`, `Theme Explorer`, `Keyword Explorer`, `Shortlist Review`, `Watchlist Review`, and `Rejected Ideas`
+- shared trend-dashboard helpers in `utils/trend_dashboard.py` so the tab and pages reuse the same logic
+- optional AI refinement for the current visible theme, keyword, and shortlist slices inside Streamlit
+- a scheduled GitHub Actions workflow for automated collection runs
 
 The current user flow is:
 
@@ -44,6 +63,14 @@ The current user flow is:
 4. Score each candidate with resale-aware heuristics
 5. Optionally run conservative availability checks
 6. Review, favorite, export, or save to portfolio
+
+The trend-intelligence flow is:
+
+1. Collect raw signals with `jobs/ingest_signals.py`
+2. Process them into classified items, themes, and keywords with `jobs/process_signals.py`
+3. Generate scored domain opportunities with `jobs/generate_domain_ideas.py`
+4. Review `themes`, `keywords`, `shortlist`, `watchlist`, and `rejected` ideas in Streamlit
+5. Optionally run selective AI refinement on the current visible slice
 
 ## Existing Strengths We Will Reuse
 
@@ -55,6 +82,7 @@ The current app already provides:
 
 - generator workflow
 - word bank editing
+- trend intelligence review with pipeline controls
 - favorites
 - session history
 - portfolio view
@@ -77,7 +105,7 @@ Main entrypoints:
 - invent
 - optional LLM creative boost
 
-This is already a useful foundation for the future `domain_engine` layer.
+This is already a useful foundation for the broader `domain_engine` layer.
 
 ### Professional Scoring Core
 
@@ -110,9 +138,10 @@ This matches the most important requirement: strong filtering and strong investo
 - keyword suggestion from a topic
 - word-bank enrichment
 - domain naming boost
+- selective review for visible theme, keyword, and shortlist slices
 - preflight model checks
 
-This can be extended into selective Gemini-style refinement later.
+This now powers targeted refinement without turning the whole pipeline into an LLM-heavy workflow.
 
 ### Local Persistence and Utilities
 
@@ -134,7 +163,7 @@ into:
 
 `signals -> cleaned items -> clustered topics -> themes -> keyword intelligence -> domain opportunities -> scoring -> shortlist -> review`
 
-The future MVP should:
+The expanded MVP should:
 
 1. Collect fresh signals from:
    - Hacker News API
@@ -172,7 +201,7 @@ The recommended architecture is modular and free-tier friendly.
 - GitHub Free for repo and scheduled workflows
 - Supabase Free for cloud storage
 - Streamlit for the review dashboard
-- Gemini Flash-Lite only for shortlist refinement
+- low-cost LLM usage only for theme, keyword, and shortlist refinement
 - No VPS
 - No Raspberry Pi
 - No Docker-first complexity
@@ -208,20 +237,28 @@ project/
 - LLM routing layer
 - local portfolio storage
 - export and review workflows
+- collectors for Hacker News, GitHub, and GNews
+- shared normalized content schema for collected items
+- raw ingestion and processing jobs
+- text cleaning, deduplication, clustering, and initial classification
+- first-pass theme extraction with consolidation across similar historical themes
+- structured source tagging for themes
+- first-pass keyword intelligence, niche mapping, and buyer hints
+- trend-derived domain opportunity generation with exact/descriptive/premium compact modes
+- source-aware trademark and exact-match risk handling for trend-derived ideas
+- review lanes for shortlist, watchlist, and rejected ideas
+- multi-page Streamlit review surfaces for themes, keywords, shortlist, watchlist, and rejected ideas
+- selective LLM refinement for visible theme, keyword, and shortlist slices
+- scheduled GitHub Actions automation for the trend pipeline
+- local JSONL and optional Supabase persistence for signal runs
 
 ### Missing for the Target
 
-- collectors for Hacker News, GitHub, and GNews
-- shared normalized content schema
-- topic deduplication and clustering
-- theme extraction layer
-- inferred commercial term extraction
-- buyer-type mapping
-- watchlist and rejected pipelines
-- Supabase integration
-- scheduled GitHub Actions jobs
-- multi-page trend intelligence dashboard
-- explicit `Buy / Watch / Skip` system for trend-derived opportunities
+- advanced clustering and stronger topic-type heuristics
+- stronger cross-source explanation detail and richer theme summaries
+- stronger domain opportunity generation scoring and deeper trademark/exact-match heuristics
+- broader closed-loop refinement that feeds AI review signals back into heuristics over time
+- deeper automated test coverage around processors, jobs, and review helpers
 
 ## Merge Strategy
 
@@ -243,6 +280,11 @@ This is lower risk than a full rewrite and preserves the highest-value logic alr
 
 Keep the current app operational while documenting the intended architecture.
 
+Current status:
+
+- completed
+- the original generator, scorer, export flow, favorites, history, and portfolio workflows remain intact
+
 ### Phase 1: Foundation
 
 Add:
@@ -252,6 +294,11 @@ Add:
 - logging
 - Supabase client integration
 - shared typed data models
+
+Current status:
+
+- completed through `config/`, `core/logging.py`, `integrations/supabase.py`, and `models/shared.py`
+- `.env`-driven runtime settings and typed shared models are already in place
 
 ### Phase 2: Collection Layer
 
@@ -269,6 +316,11 @@ Each collector should:
 - deduplicate before insert
 - store raw items in Supabase
 
+Current status:
+
+- implemented with `jobs/ingest_signals.py`
+- legacy compatibility kept through `jobs/collect_signals.py`, which now runs ingest, process, and domain-idea generation in sequence
+
 ### Phase 3: Processing Layer
 
 Implement:
@@ -280,6 +332,11 @@ Implement:
 - source tagging
 - topic-type heuristics
 
+Current status:
+
+- implemented through `jobs/process_signals.py`
+- now includes cleaning, deduplication, clustering, heuristic classification, source-aware theme building, and keyword intelligence extraction
+
 ### Phase 4: Intelligence Layer
 
 Implement:
@@ -290,6 +347,11 @@ Implement:
 - naming component extraction
 - niche mapping
 - buyer-type hints
+
+Current status:
+
+- implemented through `processors/themes.py` and `processors/keywords.py`
+- now includes theme extraction, cross-run consolidation, raw/commercial/naming keyword layers, niche mapping, and buyer hints
 
 ### Phase 5: Domain Engine Expansion
 
@@ -304,6 +366,12 @@ Extend the current generator and scorer into a broader domain engine that adds:
 - investor-style category naming
 - buy/watch/skip labeling
 
+Current status:
+
+- implemented through `jobs/generate_domain_ideas.py`
+- uses trend keywords to generate and score shortlist-ready `domain_ideas`
+- now includes exact/descriptive/premium compact-style generation paths plus persisted review buckets
+
 ### Phase 6: Streamlit Dashboard Expansion
 
 Add pages for:
@@ -315,6 +383,14 @@ Add pages for:
 - watchlist
 - rejected items
 
+Current status:
+
+- dashboard integration is live inside `app.py` through the `🧭 Trends` tab
+- the tab can run ingest/process/domain-idea jobs
+- the tab now exposes dedicated `Shortlist`, `Watchlist`, and `Rejected` review lanes with exports and portfolio actions
+- standalone Streamlit pages now exist in `pages/` for `Trend Overview`, `Theme Explorer`, `Keyword Explorer`, `Shortlist Review`, `Watchlist Review`, and `Rejected Ideas`
+- shared trend-dashboard helpers now live in `utils/trend_dashboard.py` so the tab and pages reuse the same review logic
+
 ### Phase 7: Scheduled Automation
 
 Add GitHub Actions workflows for:
@@ -324,13 +400,18 @@ Add GitHub Actions workflows for:
 - domain generation
 - shortlist refresh
 
+Current status:
+
+- scheduled automation is live in `.github/workflows/trend_pipeline.yml`
+- the workflow supports manual runs plus daily cron execution of `jobs/collect_signals.py`
+
 ### Phase 8: Selective LLM Refinement
 
-Use Gemini only after filtering narrows the candidate set.
+Use a low-cost LLM only after filtering narrows the candidate set.
 
 Good use cases:
 
-- refining shortlisted themes
+- refining visible shortlisted themes
 - improving inferred commercial terms
 - improving niche classification
 - explaining why a final domain idea is strong or weak
@@ -341,84 +422,122 @@ Bad use cases:
 - bulk ingestion
 - high-volume low-signal classification
 
-## Proposed Supabase Data Model
+Current status:
 
-The target MVP should introduce cloud tables close to:
+- selective refinement is live for the current visible `Themes`, `Keywords`, and `Shortlist` slices inside Streamlit
+- theme and keyword review panels now run through `utils/trend_dashboard.py` and are exposed in both the unified tab and the standalone pages
+- AI still reviews only filtered visible slices and returns investor-style notes instead of generating new names
+
+### Roadmap Status
+
+The roadmap defined in this README is currently implemented through `Phase 8`.
+
+What remains now is not a missing numbered phase from this document, but follow-up improvement batches such as:
+
+- stronger clustering and topic heuristics
+- feedback loops from AI review into heuristics
+- deeper exact-match / trademark safety
+- stronger tests and deployment hardening
+
+## Current Supabase-Aligned Data Model
+
+The current schema in `supabase/schema.sql` centers on these tables:
+
+### `portfolio_domains`
+
+- `full_domain`
+- `name`
+- `ext`
+- `niche`
+- `appraisal_tier`
+- `appraisal_value`
+- `score`
+- `scoring_profile`
+- `explanation`
+- `status`
 
 ### `content_items`
 
-- `id`
 - `source_name`
 - `source_type`
 - `title`
 - `url`
 - `body`
 - `summary`
-- `published_at`
-- `fetched_at`
+- `author`
+- `language`
 - `content_hash`
 - `cluster_key`
-- `language`
+- `cluster_terms`
+- `classification`
+- `theme_name`
+- `theme_description`
+- `signal_score`
+- `published_at`
+- `fetched_at`
+- `processed_at`
+- `tags`
+- `reasons`
+- `raw_payload`
 - `is_processed`
+- `ingest_run_id`
+- `processed_run_id`
 
 ### `themes`
 
-- `id`
 - `canonical_name`
 - `description`
+- `classification`
+- `source_count`
 - `first_seen_at`
 - `last_seen_at`
 - `momentum_score`
-- `source_count`
-- `status`
+- `related_terms`
+- `source_names`
+- `source_types`
+- `source_tags`
+- `source_entities`
 
 ### `keywords`
 
-- `id`
 - `keyword`
 - `keyword_type`
-- `theme_id`
+- `theme_name`
+- `classification`
 - `niche`
 - `buyer_type`
 - `commercial_score`
 - `novelty_score`
 - `brandability_score`
-- `final_score`
+- `notes`
 
 ### `domain_ideas`
 
-- `id`
 - `domain_name`
 - `extension`
-- `style`
-- `root_keyword`
-- `theme_id`
+- `source_theme`
+- `recommendation`
+- `keyword`
 - `niche`
 - `buyer_type`
-- `linguistic_score`
-- `commercial_score`
-- `risk_score`
-- `final_score`
-- `status`
-- `why_good`
-- `why_risky`
+- `style`
+- `score`
+- `review_bucket`
+- `scoring_profile`
+- `grade`
+- `value_estimate`
+- `rationale`
+- `risk_notes`
+- `rejected_reason`
 
 ### `runs`
 
-- `id`
+- `run_id`
 - `job_name`
+- `status`
 - `started_at`
 - `ended_at`
-- `status`
 - `notes`
-
-### `rejected_items`
-
-- `id`
-- `item_type`
-- `raw_value`
-- `rejection_reason`
-- `created_at`
 
 ## Free-First Tradeoffs
 
@@ -447,11 +566,35 @@ Run the current Streamlit app:
 streamlit run app.py
 ```
 
+The trend pages will appear in the Streamlit sidebar automatically.
+
 Alternative entrypoint:
 
 ```powershell
 streamlit run domaintrade_pro_v4.py
 ```
+
+Run the jobs directly:
+
+```powershell
+python jobs/ingest_signals.py
+python jobs/process_signals.py
+python jobs/generate_domain_ideas.py
+python jobs/collect_signals.py
+```
+
+Run the unit tests:
+
+```powershell
+python -m unittest discover -s tests -v
+```
+
+GitHub Actions automation:
+
+- workflow file: `.github/workflows/trend_pipeline.yml`
+- manual execution: `workflow_dispatch`
+- scheduled execution: daily cron
+- unit test workflow: `.github/workflows/unit_tests.yml`
 
 ## Current Dependencies
 
@@ -467,27 +610,26 @@ The current project already depends on:
 - `openpyxl`
 - `namecheap-python`
 - `groq`
-
-Future phases will likely add:
-
+- `python-dotenv`
 - `supabase`
-- `httpx` or `requests`
-- optional `pydantic`
 
 ## Documentation
 
 Detailed current-project flow documentation is available in:
 
 - `PROJECT_FLOW_EXPLAINED.md`
+- `MANUAL_SETUP.md`
+- `مرحلة 1.md`
+- `مرحلة 2.md`
 
-## Recommended Next Implementation Batch
+## Recommended Next Improvement Batch
 
-The best first batch for the architecture upgrade is:
+The most useful follow-up batch from here is:
 
-1. Add config management
-2. Add `.env` support
-3. Add a typed shared model layer
-4. Add Supabase integration
-5. Add the first collector: Hacker News
+1. Strengthen clustering and topic-type heuristics
+2. Feed AI review signals back into heuristics instead of keeping them review-only
+3. Improve trademark / exact-match risk scoring and cross-source explanations
+4. Add targeted tests for processors, jobs, and dashboard helpers
+5. Harden Supabase-first deployments and schema evolution
 
-This keeps the scope controlled while moving the project toward the target system immediately.
+This keeps momentum on the highest-value remaining work without reopening already-completed foundation phases.

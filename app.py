@@ -21,18 +21,26 @@ from constants import (
     DEFAULT_EXTENSIONS,
     DEFAULT_SCORING_PROFILE,
     EXTENSION_OPTIONS,
+    GENERATION_STYLE_LABELS,
+    GENERATION_STYLE_OPTIONS,
     NICHE_OPTIONS,
     SCORING_PROFILES,
 )
 from core.logging import configure_logging, get_logger
 from generator import generate_domains
 from integrations import get_supabase_manager
-from providers import ai_suggest_keywords_from_topic, ai_suggest_words, preflight_generation_model, test_connection
+from providers import (
+    ai_suggest_keywords_from_topic,
+    ai_suggest_words,
+    preflight_generation_model,
+    test_connection,
+)
 from scoring import evaluate_domain, get_profile
 from storage import add_to_portfolio, get_portfolio, init_db
 from utils.browser import open_namecheap_purchase
 from utils.export import dataframe_to_excel_bytes
 from utils.session import initialize_session_state, reset_all_app_data
+from utils.trend_dashboard import render_trend_intelligence_tab as render_shared_trend_intelligence_tab
 from utils.word_banks import deduplicate_words, save_word_banks
 
 
@@ -57,6 +65,10 @@ def render_generation_debug_panel(keywords: str) -> None:
     """Show a compact debug view for the generation pipeline."""
     selected_keywords = _normalize_keywords_for_debug(keywords)
     last_keywords = st.session_state.get("last_generation_keyword_list", [])
+    current_geo_context = str(st.session_state.get("geo_context", "") or "").strip()
+    last_geo_context = str(st.session_state.get("last_generation_geo_context", "") or "").strip()
+    selected_styles = st.session_state.get("selected_generation_styles", ["auto"])
+    last_styles = st.session_state.get("last_generation_style_list", [])
     method_counts = st.session_state.get("last_generation_method_counts", {})
     sample_candidates = st.session_state.get("last_generation_sample_candidates", [])
     llm_route = st.session_state.get("last_llm_status", "not_checked")
@@ -68,6 +80,10 @@ def render_generation_debug_panel(keywords: str) -> None:
         with col1:
             st.caption("Current selected keywords")
             st.code(", ".join(selected_keywords) if selected_keywords else "(none)", language="text")
+            st.caption("Current geo context")
+            st.code(current_geo_context or "(none)", language="text")
+            st.caption("Current generation styles")
+            st.code(", ".join(selected_styles) if selected_styles else "auto", language="text")
             st.caption(f"LLM Creative Boost requested: {'yes' if st.session_state.get('generation_use_llm', False) else 'no / fallback'}")
         with col2:
             st.caption("Current LLM route")
@@ -80,6 +96,8 @@ def render_generation_debug_panel(keywords: str) -> None:
         st.caption("Last generation snapshot")
         st.caption(f"Last raw candidate count: {st.session_state.get('last_generation_candidate_count', 0)}")
         st.caption(f"Last keywords used: {', '.join(last_keywords) if last_keywords else '(none)'}")
+        st.caption(f"Last geo context: {last_geo_context or '(none)'}")
+        st.caption(f"Last styles used: {', '.join(last_styles) if last_styles else 'auto'}")
         if method_counts:
             method_summary = ", ".join(f"{method}: {count}" for method, count in sorted(method_counts.items()))
             st.caption(f"Candidate sources: {method_summary}")
@@ -290,7 +308,17 @@ def render_methodology_status(use_llm: bool, use_availability: bool) -> None:
         )
 
 
-def render_sidebar() -> tuple[list[str], list[str], str, int, list[str], bool, bool]:
+def _normalize_generation_styles(selected_styles: list[str]) -> list[str]:
+    """Keep generation-style selection stable and make Auto mutually exclusive."""
+    cleaned_styles = [style for style in selected_styles if style in GENERATION_STYLE_OPTIONS]
+    if not cleaned_styles:
+        return ["auto"]
+    if "auto" in cleaned_styles and len(cleaned_styles) > 1:
+        cleaned_styles = [style for style in cleaned_styles if style != "auto"]
+    return cleaned_styles or ["auto"]
+
+
+def render_sidebar() -> tuple[list[str], list[str], list[str], str, str, int, list[str], bool, bool]:
     """Render sidebar controls and return selected generator and scoring options."""
     if st.sidebar.button("🗑️ Reset All App Data", type="secondary"):
         reset_all_app_data()
@@ -393,6 +421,30 @@ def render_sidebar() -> tuple[list[str], list[str], str, int, list[str], bool, b
         placeholder="e.g. fast, smart, secure",
         key="keywords",
     )
+    selected_generation_styles = st.sidebar.multiselect(
+        "Generation Styles",
+        GENERATION_STYLE_OPTIONS,
+        default=st.session_state.get("selected_generation_styles", ["auto"]),
+        format_func=lambda style: GENERATION_STYLE_LABELS.get(style, style),
+        help="Auto picks the strongest styles based on the niche and keywords. Geo mode needs a city/country keyword.",
+    )
+    selected_generation_styles = _normalize_generation_styles(selected_generation_styles)
+    st.session_state.selected_generation_styles = selected_generation_styles
+    geo_context = st.sidebar.text_input(
+        "🌍 Region / City (for Geo)",
+        placeholder="e.g. Dubai, Riyadh, Saudi Arabia",
+        key="geo_context",
+    ).strip()
+    if "geo" in selected_generation_styles:
+        if geo_context:
+            st.sidebar.caption("سيتم استخدام هذا الحقل مباشرة في توليد Geo حتى لو لم تضع الموقع داخل Keywords.")
+        else:
+            st.sidebar.caption("Geo mode يحتاج Region / City هنا أو city/country داخل Keywords مثل: dubai, cairo, texas.")
+    elif selected_generation_styles == ["auto"]:
+        if geo_context:
+            st.sidebar.caption("Auto سيأخذ Region / City في الحسبان وقد يضيف Geo results عند الحاجة.")
+        else:
+            st.sidebar.caption("Auto يختار الأنماط المناسبة حسب الـ niche والـ keywords.")
     topic_prompt = st.sidebar.text_area(
         "🧠 Topic / Brief for AI Keyword Suggestions",
         placeholder="e.g. منصة AI تساعد المطاعم على الرد التلقائي والحجوزات",
@@ -426,13 +478,25 @@ def render_sidebar() -> tuple[list[str], list[str], str, int, list[str], bool, b
     use_availability = st.sidebar.checkbox("Heuristic Availability Check", value=True)
     if use_availability:
         st.sidebar.caption("Uses conservative WHOIS/DNS signals for the exact domain. Unknown is preferred over false availability claims.")
-    return selected_niches, selected_profiles, keywords, num_per_tier, extensions, use_llm, use_availability
+    return (
+        selected_niches,
+        selected_profiles,
+        selected_generation_styles,
+        keywords,
+        geo_context,
+        num_per_tier,
+        extensions,
+        use_llm,
+        use_availability,
+    )
 
 
 def render_generator_tab(
     niches: list[str],
     scoring_profiles: list[str],
+    generation_styles: list[str],
     keywords: str,
+    geo_context: str,
     num_per_tier: int,
     extensions: list[str],
     use_llm: bool,
@@ -442,7 +506,10 @@ def render_generator_tab(
     st.title("🔥 DomainTrade Pro V5 — Professional Scoring")
     profile_labels = ", ".join(get_profile(profile).label for profile in scoring_profiles)
     niche_labels = ", ".join(niches)
-    st.caption(f"Niches: {niche_labels} · Profiles: {profile_labels}")
+    style_labels = ", ".join(GENERATION_STYLE_LABELS.get(style, style) for style in generation_styles)
+    st.caption(f"Niches: {niche_labels} · Profiles: {profile_labels} · Styles: {style_labels}")
+    if geo_context:
+        st.caption(f"Geo Context: {geo_context}")
     render_methodology_status(use_llm=use_llm, use_availability=use_availability)
     render_generation_debug_panel(keywords)
     if st.session_state.get("generation_notice"):
@@ -459,7 +526,9 @@ def render_generator_tab(
             effective_use_llm = llm_ready
             st.session_state.generation_notice = generation_notice
         else:
-            st.session_state.generation_notice = "سيتم التوليد من خلال النظام الداخلي فقط لأن LLM Creative Boost غير مفعّل."
+            st.session_state.generation_notice = (
+                "سيتم التوليد عبر محرك أوفلاين داخلي محسّن متعدد الأنماط لأن LLM Creative Boost غير مفعّل."
+            )
         st.session_state.generation_use_llm = effective_use_llm
         st.session_state.generating = True
         st.session_state.last_results = []
@@ -475,7 +544,9 @@ def render_generator_tab(
                     niche=niche,
                     use_llm=effective_use_llm,
                     word_banks=st.session_state.word_banks,
+                    requested_styles=generation_styles,
                     keywords_str=keywords,
+                    geo_context=geo_context,
                     num_per_tier=num_per_tier,
                 ):
                     candidate_name = candidate["name"]
@@ -484,6 +555,8 @@ def render_generator_tab(
 
             generated_candidates = list(generated_candidates_map.values())
             st.session_state.last_generation_keyword_list = _normalize_keywords_for_debug(keywords)
+            st.session_state.last_generation_geo_context = geo_context
+            st.session_state.last_generation_style_list = list(generation_styles)
             st.session_state.last_generation_candidate_count = len(generated_candidates)
             st.session_state.last_generation_method_counts = dict(
                 Counter(str(candidate.get("method", "unknown")) for candidate in generated_candidates)
@@ -847,7 +920,6 @@ def render_stats_tab() -> None:
         st.info("لا توجد بيانات للإحصائيات حالياً.")
 
 
-
 def main() -> None:
     """Run the Streamlit application."""
     configure_logging()
@@ -862,10 +934,21 @@ def main() -> None:
         supabase_health.client_ready,
     )
 
-    niches, scoring_profiles, keywords, num_per_tier, extensions, use_llm, use_availability = render_sidebar()
-    tab1, tab2, tab_fav, tab3, tab4, tab5 = st.tabs([
+    (
+        niches,
+        scoring_profiles,
+        generation_styles,
+        keywords,
+        geo_context,
+        num_per_tier,
+        extensions,
+        use_llm,
+        use_availability,
+    ) = render_sidebar()
+    tab1, tab2, tab_trends, tab_fav, tab3, tab4, tab5 = st.tabs([
         "🚀 Generator",
         "📚 Word Banks",
+        "🧭 Trends",
         "⭐ Favorites",
         "📊 History",
         "📦 My Portfolio",
@@ -873,9 +956,21 @@ def main() -> None:
     ])
 
     with tab1:
-        render_generator_tab(niches, scoring_profiles, keywords, num_per_tier, extensions, use_llm, use_availability)
+        render_generator_tab(
+            niches,
+            scoring_profiles,
+            generation_styles,
+            keywords,
+            geo_context,
+            num_per_tier,
+            extensions,
+            use_llm,
+            use_availability,
+        )
     with tab2:
         render_word_banks_tab(niches)
+    with tab_trends:
+        render_shared_trend_intelligence_tab()
     with tab_fav:
         render_favorites_tab()
     with tab3:

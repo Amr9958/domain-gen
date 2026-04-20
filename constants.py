@@ -34,6 +34,26 @@ DEFAULT_SCORING_PROFILE = "startup_brand"
 
 DEFAULT_EXTENSIONS = [".com", ".ai"]
 EXTENSION_OPTIONS = [".com", ".net", ".org", ".io", ".ai", ".co", ".app", ".dev"]
+GENERATION_STYLE_OPTIONS = [
+    "auto",
+    "exact",
+    "brandable",
+    "ai_futuristic",
+    "hybrid",
+    "short",
+    "outbound",
+    "geo",
+]
+GENERATION_STYLE_LABELS = {
+    "auto": "Auto",
+    "exact": "Exact / Descriptive",
+    "brandable": "Brandable",
+    "ai_futuristic": "AI / Futuristic",
+    "hybrid": "Hybrid",
+    "short": "Short",
+    "outbound": "Outbound",
+    "geo": "Geo",
+}
 
 PORTFOLIO_STATUS_UNCHECKED = "Not checked"
 SUPABASE_ENABLED = _SETTINGS.supabase_enabled

@@ -71,6 +71,28 @@ class Theme:
     last_seen_at: datetime
     momentum_score: float = 0.0
     related_terms: tuple[str, ...] = ()
+    source_names: tuple[str, ...] = ()
+    source_types: tuple[str, ...] = ()
+    source_tags: tuple[str, ...] = ()
+    source_entities: tuple[str, ...] = ()
+    source_breakdown: tuple[str, ...] = ()
+    cluster_keys: tuple[str, ...] = ()
+    evidence_titles: tuple[str, ...] = ()
+    reason_highlights: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class ProcessedSignal:
+    """Normalized signal item enriched with theme and classification metadata."""
+
+    item: ContentItem
+    cluster_key: str
+    cluster_terms: tuple[str, ...] = ()
+    classification: ItemClassification = ItemClassification.WATCHLIST
+    theme_name: str = ""
+    theme_description: str = ""
+    signal_score: float = 0.0
+    reasons: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -102,6 +124,10 @@ class DomainOpportunity:
     buyer_type: str = ""
     style: str = ""
     score: float = 0.0
+    review_bucket: str = ""
+    scoring_profile: str = ""
+    grade: str = ""
+    value_estimate: str = ""
     rationale: str = ""
     risk_notes: tuple[str, ...] = ()
     rejected_reason: str = ""
