@@ -1,9 +1,6 @@
-"""Enrichment contracts, provider adapters, and starter rule engines."""
+"""Enrichment contracts and provider adapters."""
 
-from domain_intel.enrichment.classification import StarterDomainClassificationEngine
 from domain_intel.enrichment.contracts import (
-    DerivedSignalDraft,
-    DomainClassificationHint,
     DomainTarget,
     EnrichmentError,
     EnrichmentRequest,
@@ -11,7 +8,6 @@ from domain_intel.enrichment.contracts import (
     ProviderExecutionResult,
     ProviderOutcome,
     RetryPolicy,
-    StarterLabelMatch,
     UnresolvedObservation,
     VerifiedFactDraft,
     WebsiteCheckDraft,
@@ -28,8 +24,6 @@ from domain_intel.enrichment.providers import (
 )
 
 __all__ = [
-    "DerivedSignalDraft",
-    "DomainClassificationHint",
     "DomainTarget",
     "EnrichmentError",
     "EnrichmentFreshnessPolicy",
@@ -39,8 +33,6 @@ __all__ = [
     "ProviderExecutionResult",
     "ProviderOutcome",
     "RetryPolicy",
-    "StarterDomainClassificationEngine",
-    "StarterLabelMatch",
     "StaticDnsProvider",
     "StaticDnsRecordSet",
     "StaticWhoisRdapProvider",

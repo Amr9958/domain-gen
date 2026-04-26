@@ -272,6 +272,9 @@ class ReportService:
     def generate_appraisal_report(self, command: GenerateAppraisalReportCommand) -> AppraisalReportRecord:
         """Compose and persist a reproducible appraisal report."""
 
+        if command.created_by_user_id is None:
+            raise ValueError("created_by_user_id is required for organization-scoped report generation.")
+
         report_input = self.repository.load_report_input(command)
         if report_input is None:
             raise ReportInputNotFoundError(
@@ -298,6 +301,8 @@ class ReportService:
     ) -> Optional[AppraisalReportRecord]:
         """Return a previously generated report."""
 
+        if organization_id is None:
+            raise ValueError("organization_id is required for organization-scoped report retrieval.")
         return self.repository.get_report(report_id, organization_id)
 
 

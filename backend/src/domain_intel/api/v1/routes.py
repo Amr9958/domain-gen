@@ -111,6 +111,10 @@ def generate_appraisal_report(
                 created_by_user_id=request.created_by_user_id,
             )
         )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
     except ReportInputNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return AppraisalReportRead.from_record(record)
@@ -124,7 +128,10 @@ def get_appraisal_report(
 ) -> AppraisalReportRead:
     """Retrieve a stored appraisal report."""
 
-    record = service.get_appraisal_report(report_id=report_id, organization_id=organization_id)
+    try:
+        record = service.get_appraisal_report(report_id=report_id, organization_id=organization_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     if record is None:
         raise HTTPException(status_code=404, detail=f"Appraisal report {report_id} was not found.")
     return AppraisalReportRead.from_record(record)
@@ -149,14 +156,19 @@ def create_watchlist(
 ) -> WatchlistRead:
     """Create a watchlist."""
 
-    record = service.create_watchlist(
-        CreateWatchlistCommand(
-            organization_id=request.organization_id,
-            owner_user_id=request.owner_user_id,
-            name=request.name,
-            visibility=request.visibility,
+    try:
+        record = service.create_watchlist(
+            CreateWatchlistCommand(
+                organization_id=request.organization_id,
+                owner_user_id=request.owner_user_id,
+                name=request.name,
+                visibility=request.visibility,
+            )
         )
-    )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
     return WatchlistRead.from_record(record)
 
 
@@ -180,6 +192,8 @@ def add_watchlist_item(
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
     return WatchlistItemMutationResponse(
         watchlist_item=WatchlistItemRead.from_record(record),
         created=True,
@@ -231,6 +245,8 @@ def create_alert_rule(
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
     return AlertRuleRead.from_record(record)
 
 

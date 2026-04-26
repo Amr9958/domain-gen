@@ -7,7 +7,7 @@ from typing import Dict, List
 
 from sqlalchemy import select
 
-from domain_intel.db.models import AlertRule, Watchlist, WatchlistItem
+from domain_intel.db.models import AlertRule, OrganizationMember, Watchlist, WatchlistItem
 from domain_intel.repositories.base import BaseRepository
 from domain_intel.services.alert_service import AlertRuleRecord, CreateAlertRuleCommand
 from domain_intel.services.watchlist_service import (
@@ -25,6 +25,8 @@ class WatchlistRepository(BaseRepository):
     def list_watchlists(self, organization_id, owner_user_id):
         """List watchlists with grouped items."""
 
+        if owner_user_id is not None and not self._user_belongs_to_org(organization_id, owner_user_id):
+            return []
         statement = select(Watchlist).where(
             Watchlist.organization_id == organization_id,
             Watchlist.deleted_at.is_(None),
@@ -56,6 +58,8 @@ class WatchlistRepository(BaseRepository):
     def create_watchlist(self, command: CreateWatchlistCommand) -> WatchlistRecord:
         """Create and return a watchlist."""
 
+        if not self._user_belongs_to_org(command.organization_id, command.owner_user_id):
+            raise PermissionError("owner_user_id is not a member of the requested organization.")
         watchlist = Watchlist(
             organization_id=command.organization_id,
             owner_user_id=command.owner_user_id,
@@ -70,6 +74,11 @@ class WatchlistRepository(BaseRepository):
     def add_item(self, command: AddWatchlistItemCommand) -> WatchlistItemRecord:
         """Add and return a watchlist item."""
 
+        watchlist = self.session.get(Watchlist, command.watchlist_id)
+        if watchlist is None or watchlist.deleted_at is not None:
+            raise ValueError("Watchlist was not found.")
+        if not self._user_belongs_to_org(watchlist.organization_id, command.created_by_user_id):
+            raise PermissionError("created_by_user_id is not allowed to modify this watchlist.")
         item = WatchlistItem(
             watchlist_id=command.watchlist_id,
             domain_id=command.domain_id,
@@ -116,6 +125,17 @@ class WatchlistRepository(BaseRepository):
             created_by_user_id=item.created_by_user_id,
         )
 
+    def _user_belongs_to_org(self, organization_id, user_id) -> bool:
+        return (
+            self.session.scalar(
+                select(OrganizationMember.user_id).where(
+                    OrganizationMember.organization_id == organization_id,
+                    OrganizationMember.user_id == user_id,
+                )
+            )
+            is not None
+        )
+
 
 class AlertRuleRepository(BaseRepository):
     """SQLAlchemy-backed alert-rule repository."""
@@ -123,6 +143,11 @@ class AlertRuleRepository(BaseRepository):
     def create_rule(self, command: CreateAlertRuleCommand) -> AlertRuleRecord:
         """Persist and return an alert rule."""
 
+        watchlist = self.session.get(Watchlist, command.watchlist_id)
+        if watchlist is None or watchlist.deleted_at is not None:
+            raise ValueError("Watchlist was not found.")
+        if watchlist.organization_id != command.organization_id:
+            raise PermissionError("Alert rules must use the watchlist organization.")
         rule = AlertRule(
             organization_id=command.organization_id,
             watchlist_id=command.watchlist_id,

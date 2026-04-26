@@ -8,9 +8,7 @@ from uuid import UUID
 
 from domain_intel.core.enums import EnrichmentCheckType, EnrichmentStatus
 from domain_intel.db.base import utc_now
-from domain_intel.enrichment.classification import StarterDomainClassificationEngine
 from domain_intel.enrichment.contracts import (
-    DerivedSignalDraft,
     DnsMxProvider,
     DomainTarget,
     EnrichmentError,
@@ -35,18 +33,16 @@ class EnrichmentService:
         whois_rdap_provider: WhoisRdapProvider,
         dns_provider: DnsMxProvider,
         website_provider: WebsiteInspectionProvider,
-        classification_engine: StarterDomainClassificationEngine | None = None,
         freshness_policy: EnrichmentFreshnessPolicy | None = None,
     ) -> None:
         self.repository = repository
         self.whois_rdap_provider = whois_rdap_provider
         self.dns_provider = dns_provider
         self.website_provider = website_provider
-        self.classification_engine = classification_engine or StarterDomainClassificationEngine()
         self.freshness_policy = freshness_policy or EnrichmentFreshnessPolicy()
 
     def enrich_domain(self, request: EnrichmentRequest) -> EnrichmentResult:
-        """Run deterministic enrichment steps and persist facts, signals, and website checks."""
+        """Run deterministic enrichment steps and persist facts and website checks."""
 
         started_at = utc_now()
         target = self._load_target(request.domain_id, request.fqdn)
@@ -61,7 +57,6 @@ class EnrichmentService:
         self.repository.update_enrichment_run(run, status=EnrichmentStatus.IN_PROGRESS)
 
         created_fact_ids: List[UUID] = []
-        created_signal_ids: List[UUID] = []
         provider_outcomes: List[ProviderOutcome] = []
         website_check_id: UUID | None = None
         errors: List[EnrichmentError] = []
@@ -72,27 +67,12 @@ class EnrichmentService:
                 target=target,
                 check=check,
                 result=result,
-                default_generated_at=started_at,
             )
             provider_outcomes.append(outcome)
             created_fact_ids.extend(outcome.created_fact_ids)
-            created_signal_ids.extend(outcome.created_signal_ids)
             errors.extend(outcome.errors)
             if persisted_website_check_id is not None:
                 website_check_id = persisted_website_check_id
-
-        classification_hint = self.classification_engine.classify(target)
-        if classification_hint.labels:
-            classification_signal = DerivedSignalDraft(
-                signal_type="classification_hint",
-                signal_key="starter_labels",
-                signal_value_json=classification_hint.to_signal_payload(),
-                algorithm_version=self.classification_engine.algorithm_version,
-                confidence_score=classification_hint.primary_confidence_score,
-                generated_at=started_at,
-            )
-            created_rows = self.repository.create_derived_signals(target.domain_id, [classification_signal])
-            created_signal_ids.extend([row.id for row in created_rows])
 
         final_status = self._final_status(provider_outcomes)
         error_code, error_summary = self._error_summary(errors)
@@ -109,11 +89,9 @@ class EnrichmentService:
             enrichment_run_id=run.id,
             status=final_status,
             created_fact_ids=created_fact_ids,
-            created_signal_ids=created_signal_ids,
             website_check_id=website_check_id,
             provider_outcomes=provider_outcomes,
             errors=errors,
-            classification_hint=classification_hint,
         )
 
     def _load_target(self, domain_id: UUID, fqdn_override: str | None) -> DomainTarget:
@@ -174,10 +152,8 @@ class EnrichmentService:
         target: DomainTarget,
         check: EnrichmentCheckType,
         result: ProviderExecutionResult,
-        default_generated_at: datetime,
     ) -> tuple[ProviderOutcome, UUID | None]:
         created_fact_ids: List[UUID] = []
-        created_signal_ids: List[UUID] = []
         website_check_id: UUID | None = None
 
         if result.verified_facts:
@@ -202,30 +178,12 @@ class EnrichmentService:
             )
             website_check_id = website_check.id
 
-        if result.derived_signals:
-            signal_drafts = [
-                DerivedSignalDraft(
-                    signal_type=draft.signal_type,
-                    signal_key=draft.signal_key,
-                    signal_value_json=draft.signal_value_json,
-                    algorithm_version=draft.algorithm_version,
-                    confidence_score=draft.confidence_score,
-                    generated_at=draft.generated_at or default_generated_at,
-                    input_fact_ids=draft.input_fact_ids or created_fact_ids,
-                    input_signal_ids=draft.input_signal_ids,
-                )
-                for draft in result.derived_signals
-            ]
-            signal_rows = self.repository.create_derived_signals(target.domain_id, signal_drafts)
-            created_signal_ids.extend(row.id for row in signal_rows)
-
         return (
             ProviderOutcome(
                 check=check,
                 provider_name=result.provider_name,
                 status=result.status,
                 created_fact_ids=created_fact_ids,
-                created_signal_ids=created_signal_ids,
                 cache_hit=result.cache_hit,
                 unresolved=result.unresolved,
                 errors=result.errors,

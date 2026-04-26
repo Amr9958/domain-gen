@@ -10,6 +10,7 @@ from domain_intel.marketplaces.dynadot.parser import (
     DynadotParsedListing,
     DynadotParsedPage,
     parse_dynadot_listing_page,
+    parse_dynadot_raw_observation,
 )
 
 __all__ = [
@@ -20,4 +21,5 @@ __all__ = [
     "DynadotParsedPage",
     "PARSER_VERSION",
     "parse_dynadot_listing_page",
+    "parse_dynadot_raw_observation",
 ]

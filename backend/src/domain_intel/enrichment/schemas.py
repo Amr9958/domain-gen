@@ -8,7 +8,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from domain_intel.enrichment.contracts import DomainClassificationHint, EnrichmentResult
+from domain_intel.enrichment.contracts import EnrichmentResult
 
 
 class EnrichmentErrorRead(BaseModel):
@@ -36,7 +36,6 @@ class ProviderOutcomeRead(BaseModel):
     provider_name: str
     status: str
     created_fact_ids: List[UUID] = Field(default_factory=list)
-    created_signal_ids: List[UUID] = Field(default_factory=list)
     cache_hit: bool = False
     unresolved: List[UnresolvedObservationRead] = Field(default_factory=list)
     errors: List[EnrichmentErrorRead] = Field(default_factory=list)
@@ -70,35 +69,15 @@ class EnrichmentResponseRead(BaseModel):
         )
 
 
-class StarterClassificationRead(BaseModel):
-    """Serialized starter classification hint."""
-
-    primary_label: Optional[str]
-    mapped_domain_type: Optional[str]
-    business_category: Optional[str]
-    labels: List[Dict[str, Any]] = Field(default_factory=list)
-    tokens: List[str] = Field(default_factory=list)
-    unmatched_tokens: List[str] = Field(default_factory=list)
-
-    @classmethod
-    def from_hint(cls, hint: Optional[DomainClassificationHint]) -> Optional["StarterClassificationRead"]:
-        if hint is None:
-            return None
-        payload = hint.to_signal_payload()
-        return cls(**payload)
-
-
 class EnrichmentDocumentRead(BaseModel):
     """Richer JSON shape for internal inspection and future API expansion."""
 
     enrichment_run_id: UUID
     status: str
     created_fact_ids: List[UUID] = Field(default_factory=list)
-    created_signal_ids: List[UUID] = Field(default_factory=list)
     website_check_id: Optional[UUID] = None
     provider_outcomes: List[ProviderOutcomeRead] = Field(default_factory=list)
     errors: List[EnrichmentErrorRead] = Field(default_factory=list)
-    starter_classification: Optional[StarterClassificationRead] = None
     generated_at: datetime
 
     @classmethod
@@ -107,7 +86,6 @@ class EnrichmentDocumentRead(BaseModel):
             enrichment_run_id=result.enrichment_run_id,
             status=result.status.value,
             created_fact_ids=result.created_fact_ids,
-            created_signal_ids=result.created_signal_ids,
             website_check_id=result.website_check_id,
             provider_outcomes=[
                 ProviderOutcomeRead(
@@ -115,7 +93,6 @@ class EnrichmentDocumentRead(BaseModel):
                     provider_name=outcome.provider_name,
                     status=outcome.status.value,
                     created_fact_ids=outcome.created_fact_ids,
-                    created_signal_ids=outcome.created_signal_ids,
                     cache_hit=outcome.cache_hit,
                     unresolved=[
                         UnresolvedObservationRead(
@@ -147,7 +124,6 @@ class EnrichmentDocumentRead(BaseModel):
                 )
                 for error in result.errors
             ],
-            starter_classification=StarterClassificationRead.from_hint(result.classification_hint),
             generated_at=generated_at,
         )
 
@@ -179,7 +155,6 @@ ENRICHMENT_DOCUMENT_EXAMPLE: Dict[str, Any] = {
         "986e4d26-0fe3-49d6-b774-c0db65b7bd89",
         "53619dc4-9d35-4437-9d8f-e9e8125fe88a",
     ],
-    "created_signal_ids": ["ad211775-dadc-4a59-bec8-8d4ef79cab24"],
     "website_check_id": "7f7804ff-b43e-4378-9f1b-84477fd88f7a",
     "provider_outcomes": [
         {
@@ -187,28 +162,11 @@ ENRICHMENT_DOCUMENT_EXAMPLE: Dict[str, Any] = {
             "provider_name": "http_website_inspector",
             "status": "completed",
             "created_fact_ids": ["53619dc4-9d35-4437-9d8f-e9e8125fe88a"],
-            "created_signal_ids": ["ad211775-dadc-4a59-bec8-8d4ef79cab24"],
             "cache_hit": False,
             "unresolved": [],
             "errors": [],
         }
     ],
     "errors": [],
-    "starter_classification": {
-        "primary_label": "ai_tech",
-        "mapped_domain_type": "exact_match",
-        "business_category": "technology",
-        "labels": [
-            {
-                "label": "ai_tech",
-                "confidence_score": 0.84,
-                "reason": "Matched technology token(s) ['ai'].",
-                "matched_tokens": ["ai"],
-                "mapped_domain_type": "exact_match",
-            }
-        ],
-        "tokens": ["atlas", "ai"],
-        "unmatched_tokens": [],
-    },
     "generated_at": "2026-04-23T18:05:00Z",
 }

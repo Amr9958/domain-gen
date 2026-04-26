@@ -8,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 
 from domain_intel.contracts.appraisal import AppraisalReportContract
-from domain_intel.db.models import AIExplanation, AppraisalReport, Auction, DerivedSignal, Domain, ValuationRun, VerifiedFact
+from domain_intel.db.models import AIExplanation, AppraisalReport, Auction, DerivedSignal, Domain, OrganizationMember, ValuationRun, VerifiedFact
 from domain_intel.repositories.base import BaseRepository
 from domain_intel.services.report_service import (
     AppraisalReportRecord,
@@ -30,6 +30,11 @@ class AppraisalReportRepository(BaseRepository):
 
     def load_report_input(self, command: GenerateAppraisalReportCommand) -> Optional[ReportCompositionInput]:
         """Load the structured inputs required for deterministic report generation."""
+
+        if command.created_by_user_id is None:
+            return None
+        if not self._user_belongs_to_org(command.organization_id, command.created_by_user_id):
+            raise PermissionError("created_by_user_id is not a member of the requested organization.")
 
         valuation = self.session.scalar(
             select(ValuationRun)
@@ -230,15 +235,27 @@ class AppraisalReportRepository(BaseRepository):
         return self._to_record(report)
 
     def get_report(self, report_id, organization_id) -> Optional[AppraisalReportRecord]:
-        """Read a stored report by id and optional organization scope."""
+        """Read a stored report by id within a required organization scope."""
 
-        statement = select(AppraisalReport).where(AppraisalReport.id == report_id)
-        if organization_id is not None:
-            statement = statement.where(AppraisalReport.organization_id == organization_id)
+        statement = select(AppraisalReport).where(
+            AppraisalReport.id == report_id,
+            AppraisalReport.organization_id == organization_id,
+        )
         report = self.session.scalar(statement)
         if report is None:
             return None
         return self._to_record(report)
+
+    def _user_belongs_to_org(self, organization_id, user_id) -> bool:
+        return (
+            self.session.scalar(
+                select(OrganizationMember.user_id).where(
+                    OrganizationMember.organization_id == organization_id,
+                    OrganizationMember.user_id == user_id,
+                )
+            )
+            is not None
+        )
 
     def _to_record(self, report: AppraisalReport) -> AppraisalReportRecord:
         return AppraisalReportRecord(

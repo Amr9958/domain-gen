@@ -80,6 +80,18 @@ def test_report_routes_generate_and_read() -> None:
     assert get_response.json()["report_json"]["recommended_listing_price"]["amount"] == "2750.00"
 
 
+def test_get_report_requires_organization_scope() -> None:
+    fake_service = FakeReportService()
+    app = create_app()
+    app.dependency_overrides[get_report_service] = lambda: fake_service
+    client = TestClient(app)
+
+    response = client.get(f"/v1/reports/appraisals/{fake_service.record.id}")
+
+    assert response.status_code == 400
+    assert "organization_id is required" in response.json()["detail"]
+
+
 def test_watchlist_alert_and_saved_search_routes() -> None:
     fake_watchlist_service = FakeWatchlistService()
     fake_alert_service = FakeAlertService()
@@ -139,6 +151,37 @@ def test_watchlist_alert_and_saved_search_routes() -> None:
     assert saved_search.status_code == 200
     assert saved_search.json()["supported"] is False
     assert saved_search.json()["errors"][0]["code"] == "schema_contract_mismatch"
+
+
+def test_workflow_routes_surface_permission_denied() -> None:
+    app = create_app()
+    app.dependency_overrides[get_watchlist_service] = lambda: DenyingWatchlistService()
+    app.dependency_overrides[get_alert_service] = lambda: DenyingAlertService()
+    client = TestClient(app)
+
+    watchlist_response = client.post(
+        "/v1/watchlists",
+        json={
+            "organization_id": str(uuid4()),
+            "owner_user_id": str(uuid4()),
+            "name": "Blocked",
+            "visibility": "private",
+        },
+    )
+    alert_response = client.post(
+        "/v1/alert-rules",
+        json={
+            "organization_id": str(uuid4()),
+            "watchlist_id": str(uuid4()),
+            "rule_type": "price_below_threshold",
+            "is_enabled": True,
+            "threshold_json": {"amount": "500.00", "currency": "USD"},
+            "channel_config_json": {"channels": ["email"]},
+        },
+    )
+
+    assert watchlist_response.status_code == 403
+    assert alert_response.status_code == 403
 
 
 def test_undervalued_auctions_route_returns_dashboard_shape() -> None:
@@ -223,6 +266,8 @@ class FakeReportService:
         return self.record
 
     def get_appraisal_report(self, report_id, organization_id=None):
+        if organization_id is None:
+            raise ValueError("organization_id is required for organization-scoped report retrieval.")
         return self.record if report_id == self.record.id else None
 
 
@@ -277,6 +322,16 @@ class FakeAlertService:
             created_at=now,
             updated_at=now,
         )
+
+
+class DenyingWatchlistService:
+    def create_watchlist(self, command):
+        raise PermissionError("owner_user_id is not a member of the requested organization.")
+
+
+class DenyingAlertService:
+    def create_rule(self, command):
+        raise PermissionError("Alert rules must use the watchlist organization.")
 
 
 class FakeSavedSearchService(SavedSearchService):

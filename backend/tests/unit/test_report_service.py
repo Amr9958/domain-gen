@@ -60,6 +60,18 @@ def test_report_service_generates_and_persists_typed_report() -> None:
     assert record.report_json.validated_ai_explanations[0].explanation_type == "appraisal_summary"
 
 
+def test_report_service_requires_organization_scope_for_reads() -> None:
+    fake_repository = FakeReportRepository(_build_report_input())
+    service = ReportService(fake_repository)
+
+    try:
+        service.get_appraisal_report(report_id=uuid4(), organization_id=None)
+    except ValueError as exc:
+        assert "organization_id is required" in str(exc)
+    else:  # pragma: no cover - defensive assertion
+        raise AssertionError("Expected ValueError for unscoped report retrieval.")
+
+
 class FakeReportRepository:
     def __init__(self, report_input: ReportCompositionInput) -> None:
         self.report_input = report_input

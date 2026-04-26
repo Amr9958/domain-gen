@@ -19,6 +19,7 @@ from domain_intel.marketplaces.base import PageFetchError
 from domain_intel.marketplaces.dynadot import DynadotAuctionAdapter, parse_dynadot_listing_page
 from domain_intel.marketplaces.run_logging import InMemoryScrapeRunLogger
 from domain_intel.marketplaces.schemas import FetchedPage, FetchAuctionItemsRequest
+from domain_intel.normalization import DynadotAuctionNormalizer, NormalizeRawItemRequest
 
 
 FIXTURE_DIR = Path(__file__).resolve().parent / "fixtures" / "dynadot"
@@ -124,9 +125,37 @@ class DynadotAdapterTests(unittest.TestCase):
         self.assertEqual(first_item["marketplace_code"], "dynadot")
         self.assertEqual(first_item["source_item_id"], "dynadot-fixture-1001")
         self.assertTrue(first_item["raw_payload_hash"].startswith("sha256:"))
-        self.assertEqual(first_item["raw_payload_json"]["source_name"], "dynadot")
-        self.assertEqual(first_item["raw_payload_json"]["auction_type"], "expired")
-        self.assertEqual(first_item["raw_payload_json"]["adapter_metadata"]["parser_version"], "dynadot-parser-v1")
+        self.assertEqual(first_item["raw_payload_json"]["extraction_method"], "html_table")
+        self.assertEqual(first_item["raw_payload_json"]["page_url"], PAGE_1_URL)
+        self.assertIn("cells", first_item["raw_payload_json"])
+
+    def test_normalizer_maps_raw_observation_to_canonical_schema(self) -> None:
+        parsed = parse_dynadot_listing_page(
+            _read_fixture("expired_auction_page_1.html"),
+            page_url=PAGE_1_URL,
+            captured_at=CAPTURED_AT,
+        )
+        normalizer = DynadotAuctionNormalizer()
+
+        normalized = normalizer.normalize_raw_item(
+            NormalizeRawItemRequest(
+                raw_auction_item_id="raw-dynadot-1",
+                marketplace_code=MarketplaceCode.DYNADOT,
+                source_item_id=parsed.listings[0].source_listing_id,
+                raw_payload_json=parsed.listings[0].raw_payload,
+                source_url=parsed.listings[0].listing_url,
+                captured_at=CAPTURED_AT,
+            )
+        )
+
+        self.assertEqual(normalized.errors, [])
+        self.assertEqual(normalized.domain.fqdn, "alpha-investor.test")
+        self.assertEqual(normalized.auction.marketplace_code.value, "dynadot")
+        self.assertEqual(normalized.auction.source_item_id, "dynadot-fixture-1001")
+        self.assertEqual(normalized.auction.status.value, "open")
+        self.assertEqual(normalized.auction.current_bid.to_api_dict(), {"amount": "120.00", "currency": "USD"})
+        self.assertEqual(normalized.snapshot.status.value, "open")
+        self.assertEqual(normalized.evidence_refs[0].id, "raw-dynadot-1")
 
 
 if __name__ == "__main__":

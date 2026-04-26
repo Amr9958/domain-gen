@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import Decimal
 from functools import lru_cache
 from typing import Iterable, List
 
 from domain_intel.core.enums import DomainType, StarterDomainLabel
-from domain_intel.enrichment.contracts import DomainClassificationHint, DomainTarget, StarterLabelMatch
+from domain_intel.enrichment.contracts import DomainTarget
 
 
 GEO_TOKENS = {
@@ -142,6 +142,58 @@ MODIFIER_TOKENS = {
     "pro",
     "pros",
 }
+
+
+@dataclass(frozen=True)
+class StarterLabelMatch:
+    """Explainable starter classification label match."""
+
+    label: StarterDomainLabel
+    confidence_score: Decimal
+    reason: str
+    matched_tokens: List[str] = field(default_factory=list)
+    mapped_domain_type: DomainType | None = None
+
+
+@dataclass(frozen=True)
+class DomainClassificationHint:
+    """Placeholder starter classification output for a future classification module."""
+
+    primary_label: StarterDomainLabel | None
+    mapped_domain_type: DomainType | None
+    business_category: str | None
+    labels: List[StarterLabelMatch]
+    tokens: List[str]
+    unmatched_tokens: List[str]
+
+    @property
+    def primary_confidence_score(self) -> Decimal | None:
+        if not self.labels:
+            return None
+        return self.labels[0].confidence_score
+
+    def to_signal_payload(self) -> dict[str, object]:
+        """Convert the hint into a stable JSON payload for future signal/classification work."""
+
+        return {
+            "primary_label": self.primary_label.value if self.primary_label is not None else None,
+            "mapped_domain_type": self.mapped_domain_type.value if self.mapped_domain_type is not None else None,
+            "business_category": self.business_category,
+            "labels": [
+                {
+                    "label": match.label.value,
+                    "confidence_score": float(match.confidence_score),
+                    "reason": match.reason,
+                    "matched_tokens": match.matched_tokens,
+                    "mapped_domain_type": (
+                        match.mapped_domain_type.value if match.mapped_domain_type is not None else None
+                    ),
+                }
+                for match in self.labels
+            ],
+            "tokens": self.tokens,
+            "unmatched_tokens": self.unmatched_tokens,
+        }
 
 
 @dataclass(frozen=True)

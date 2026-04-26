@@ -10,7 +10,7 @@ import html
 import json
 import re
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 from html.parser import HTMLParser
@@ -235,6 +235,44 @@ def parse_dynadot_listing_page(
     )
 
 
+def parse_dynadot_raw_observation(
+    raw_payload: Mapping[str, Any],
+    *,
+    source_item_id: str,
+    source_url: str | None,
+    captured_at: datetime,
+) -> DynadotParsedListing | None:
+    """Reconstruct a parsed Dynadot listing from stored raw observation payload."""
+
+    extraction_method = _string_or_none(raw_payload.get("extraction_method"))
+    page_url = _string_or_none(raw_payload.get("page_url")) or source_url or "https://www.dynadot.com/market/auction"
+    parsed_at = _ensure_utc(captured_at)
+
+    if extraction_method == "structured_json":
+        record = raw_payload.get("record")
+        if not isinstance(record, Mapping):
+            return None
+        listing = _listing_from_mapping(record, page_url=page_url, captured_at=parsed_at)
+        if listing is None:
+            return None
+        return replace(
+            listing,
+            source_listing_id=source_item_id or listing.source_listing_id,
+            listing_url=source_url or listing.listing_url,
+            raw_payload=raw_payload,
+        )
+
+    if extraction_method == "html_table":
+        return _listing_from_raw_cell_payload(
+            raw_payload,
+            source_item_id=source_item_id,
+            source_url=source_url,
+            captured_at=parsed_at,
+        )
+
+    return None
+
+
 def _parse_table_listings(
     rows: Iterable[_Row],
     *,
@@ -333,6 +371,59 @@ def _listing_from_cells(
             "cells": raw_cells,
             "page_url": page_url,
         },
+    )
+
+
+def _listing_from_raw_cell_payload(
+    raw_payload: Mapping[str, Any],
+    *,
+    source_item_id: str,
+    source_url: str | None,
+    captured_at: datetime,
+) -> DynadotParsedListing | None:
+    row_attrs_raw = raw_payload.get("row_attributes")
+    row_attrs = row_attrs_raw if isinstance(row_attrs_raw, Mapping) else {}
+    cells_raw = raw_payload.get("cells")
+    if not isinstance(cells_raw, Mapping):
+        return None
+
+    domain_payload = _raw_cell_payload_by_alias(cells_raw, HEADER_ALIASES["domain"])
+    domain_text = _clean_domain(_string_or_none(domain_payload.get("text")) if domain_payload else None)
+    if not _looks_like_domain(domain_text):
+        return None
+
+    page_url = _string_or_none(raw_payload.get("page_url")) or source_url or "https://www.dynadot.com/market/auction"
+    listing_url = source_url or _first_listing_url(_raw_links(domain_payload), page_url)
+    close_payload = _raw_cell_payload_by_alias(cells_raw, HEADER_ALIASES["close_time"])
+    close_attrs = close_payload.get("attributes") if isinstance(close_payload, Mapping) else {}
+    close_attrs = close_attrs if isinstance(close_attrs, Mapping) else {}
+    close_time = _parse_close_time(
+        close_attrs.get("data-close-time"),
+        _raw_cell_text_by_alias(cells_raw, HEADER_ALIASES["close_time"]),
+        captured_at=captured_at,
+    )
+    source_status = _raw_cell_text_by_alias(cells_raw, HEADER_ALIASES["source_status"])
+    auction_type_text = _raw_cell_text_by_alias(cells_raw, HEADER_ALIASES["auction_type"])
+    sld, tld = _split_domain(domain_text)
+
+    return DynadotParsedListing(
+        source_listing_id=source_item_id or _row_source_id(row_attrs, listing_url, domain_text),
+        domain_name=domain_text,
+        sld=sld,
+        tld=tld,
+        auction_type=_map_auction_type(auction_type_text, page_url),
+        current_price=_parse_money(_raw_cell_text_by_alias(cells_raw, HEADER_ALIASES["current_price"])),
+        min_next_bid=_parse_money(_raw_cell_text_by_alias(cells_raw, HEADER_ALIASES["min_next_bid"])),
+        bid_count=_parse_int(_raw_cell_text_by_alias(cells_raw, HEADER_ALIASES["bid_count"])),
+        close_time=close_time,
+        listing_url=listing_url,
+        traffic=_parse_int(_raw_cell_text_by_alias(cells_raw, HEADER_ALIASES["traffic"])),
+        revenue=_parse_money(_raw_cell_text_by_alias(cells_raw, HEADER_ALIASES["revenue"])),
+        renewal_price=_parse_money(_raw_cell_text_by_alias(cells_raw, HEADER_ALIASES["renewal_price"])),
+        age_if_available=_parse_int(_raw_cell_text_by_alias(cells_raw, HEADER_ALIASES["age_if_available"])),
+        source_status=source_status,
+        canonical_status=_map_status(source_status, close_time=close_time, captured_at=captured_at),
+        raw_payload=raw_payload,
     )
 
 
@@ -519,6 +610,47 @@ def _cell_by_alias(field_cells: Mapping[str, _Cell], aliases: Iterable[str]) -> 
 def _cell_text(field_cells: Mapping[str, _Cell], aliases: Iterable[str]) -> str | None:
     cell = _cell_by_alias(field_cells, aliases)
     return cell.text if cell is not None else None
+
+
+def _raw_cell_payload_by_alias(
+    cells_payload: Mapping[str, Any],
+    aliases: Iterable[str],
+) -> Mapping[str, Any] | None:
+    for alias in aliases:
+        candidate = cells_payload.get(_normalize_key(alias))
+        if isinstance(candidate, Mapping):
+            return candidate
+    return None
+
+
+def _raw_cell_text_by_alias(cells_payload: Mapping[str, Any], aliases: Iterable[str]) -> str | None:
+    payload = _raw_cell_payload_by_alias(cells_payload, aliases)
+    if payload is None:
+        return None
+    return _string_or_none(payload.get("text"))
+
+
+def _raw_links(payload: Mapping[str, Any] | None) -> list[_Link]:
+    if payload is None:
+        return []
+    raw_links = payload.get("links")
+    if not isinstance(raw_links, list):
+        return []
+    links: list[_Link] = []
+    for raw_link in raw_links:
+        if not isinstance(raw_link, Mapping):
+            continue
+        attrs = raw_link.get("attributes")
+        attrs = attrs if isinstance(attrs, Mapping) else {}
+        link = _Link(attrs={str(key): str(value) for key, value in attrs.items()})
+        text = _string_or_none(raw_link.get("text"))
+        if text:
+            link.text_parts.append(text)
+        href = _string_or_none(raw_link.get("href"))
+        if href and "href" not in link.attrs:
+            link.attrs["href"] = href
+        links.append(link)
+    return links
 
 
 def _row_source_id(attrs: Mapping[str, str], listing_url: str | None, domain_name: str) -> str:

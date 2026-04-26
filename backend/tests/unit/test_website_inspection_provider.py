@@ -39,8 +39,8 @@ def test_sales_landing_page_detection_sets_sales_category() -> None:
     result = provider.inspect(_target("forsaleexample.com"))
 
     assert result.status.value == "completed"
-    assert result.derived_signals[0].signal_value_json["category"] == WebsitePageCategory.SALES_LANDING_PAGE.value
-    assert result.derived_signals[0].signal_value_json["is_for_sale"] is True
+    assert result.metadata["page_category"] == WebsitePageCategory.SALES_LANDING_PAGE.value
+    assert result.verified_facts[1].fact_value_json["page_category"] == WebsitePageCategory.SALES_LANDING_PAGE.value
 
 
 def test_parked_page_detection_sets_parked_category() -> None:
@@ -53,8 +53,8 @@ def test_parked_page_detection_sets_parked_category() -> None:
 
     result = provider.inspect(_target("parkedexample.com"))
 
-    assert result.derived_signals[0].signal_value_json["category"] == WebsitePageCategory.PARKED_PAGE.value
-    assert result.derived_signals[0].signal_value_json["is_parked"] is True
+    assert result.metadata["page_category"] == WebsitePageCategory.PARKED_PAGE.value
+    assert result.verified_facts[1].fact_value_json["page_category"] == WebsitePageCategory.PARKED_PAGE.value
 
 
 def test_cross_domain_redirect_detection_sets_redirect_category() -> None:
@@ -72,8 +72,8 @@ def test_cross_domain_redirect_detection_sets_redirect_category() -> None:
 
     result = provider.inspect(_target("redirectme.com"))
 
-    assert result.derived_signals[0].signal_value_json["category"] == WebsitePageCategory.REDIRECT.value
-    assert result.derived_signals[0].signal_value_json["is_redirect"] is True
+    assert result.metadata["page_category"] == WebsitePageCategory.REDIRECT.value
+    assert result.verified_facts[1].fact_value_json["page_category"] == WebsitePageCategory.REDIRECT.value
 
 
 def test_blank_page_detection_marks_inactive_pages() -> None:
@@ -85,5 +85,5 @@ def test_blank_page_detection_marks_inactive_pages() -> None:
 
     result = provider.inspect(_target("inactiveexample.com"))
 
-    assert result.derived_signals[0].signal_value_json["category"] == WebsitePageCategory.BLANK_INACTIVE.value
-    assert result.derived_signals[0].signal_value_json["is_inactive"] is True
+    assert result.metadata["page_category"] == WebsitePageCategory.BLANK_INACTIVE.value
+    assert result.verified_facts[1].fact_value_json["page_category"] == WebsitePageCategory.BLANK_INACTIVE.value

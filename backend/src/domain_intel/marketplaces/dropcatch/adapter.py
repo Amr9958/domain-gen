@@ -1,11 +1,11 @@
-"""Dynadot auction adapter."""
+"""DropCatch auction adapter."""
 
 from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
-from urllib.parse import urlencode, urljoin, urlparse
+from urllib.parse import urljoin, urlparse
 
 from domain_intel.core.enums import MarketplaceCode
 from domain_intel.marketplaces.base import (
@@ -24,30 +24,28 @@ from domain_intel.marketplaces.schemas import (
     RawAuctionItemObservation,
     stable_payload_hash,
 )
-from domain_intel.marketplaces.dynadot.parser import PARSER_VERSION, SOURCE_NAME, parse_dynadot_listing_page
+from domain_intel.marketplaces.dropcatch.parser import PARSER_VERSION, SOURCE_NAME, parse_dropcatch_listing_page
 
 
-ADAPTER_VERSION = "dynadot-adapter-v1"
+ADAPTER_VERSION = "dropcatch-adapter-v1"
 
 
 @dataclass(frozen=True)
-class DynadotAuctionAdapterConfig:
-    """Configuration for Dynadot expired auction ingestion."""
+class DropCatchAuctionAdapterConfig:
+    """Configuration for DropCatch listing ingestion."""
 
-    base_url: str = "https://www.dynadot.com"
-    auction_path: str = "/market/auction"
-    default_page_size: int = 100
+    default_listing_url: str | None = None
     request_timeout_seconds: float = 20.0
     user_agent: str = "DomainIntelBot/0.1 (+https://example.invalid/contact)"
     min_delay_between_requests_seconds: float = 1.5
     max_pages_per_run: int = 10
     respect_robots_txt: bool = True
-    allowed_hosts: tuple[str, ...] = ("www.dynadot.com", "dynadot.com")
+    allowed_hosts: tuple[str, ...] = ("www.dropcatch.com", "dropcatch.com", "dropcatch.test")
     retry_policy: RetryPolicy = field(default_factory=RetryPolicy)
 
 
-class DynadotAuctionAdapter:
-    """Fetch and parse Dynadot listing pages into raw auction observations."""
+class DropCatchAuctionAdapter:
+    """Fetch and parse DropCatch listing pages into raw auction observations."""
 
     adapter_version = ADAPTER_VERSION
     parser_version = PARSER_VERSION
@@ -59,9 +57,9 @@ class DynadotAuctionAdapter:
         fetcher: PageFetcher | None = None,
         run_logger: ScrapeRunLogger | None = None,
         dedup_store: DeduplicationStore | None = None,
-        config: DynadotAuctionAdapterConfig | None = None,
+        config: DropCatchAuctionAdapterConfig | None = None,
     ) -> None:
-        self.config = config or DynadotAuctionAdapterConfig()
+        self.config = config or DropCatchAuctionAdapterConfig()
         self.fetcher = fetcher or SafeHttpPageFetcher(
             SafeHttpConfig(
                 user_agent=self.config.user_agent,
@@ -76,7 +74,7 @@ class DynadotAuctionAdapter:
         self.dedup_store = dedup_store or InMemoryDeduplicationStore()
 
     def fetch_auction_items(self, request: FetchAuctionItemsRequest) -> FetchAuctionItemsResponse:
-        """Fetch one Dynadot listing page and return raw observations."""
+        """Fetch one DropCatch listing page and return raw observations."""
 
         started_at = _utc_now()
         metrics = ScrapeRunMetrics(started_at=started_at)
@@ -105,7 +103,7 @@ class DynadotAuctionAdapter:
         *,
         max_pages: int | None = None,
     ) -> FetchAuctionItemsResponse:
-        """Fetch listing pages until no next cursor is present or max_pages is reached."""
+        """Fetch listing pages until exhausted or until max_pages is reached."""
 
         started_at = _utc_now()
         metrics = ScrapeRunMetrics(started_at=started_at)
@@ -151,17 +149,26 @@ class DynadotAuctionAdapter:
         metrics: ScrapeRunMetrics,
     ) -> FetchAuctionItemsResponse:
         marketplace_code = str(request.marketplace_code.value if hasattr(request.marketplace_code, "value") else request.marketplace_code)
-        if marketplace_code != MarketplaceCode.DYNADOT.value:
+        if marketplace_code != MarketplaceCode.DROPCATCH.value:
             error = ModuleError(
                 code="unsupported_marketplace",
-                message="Dynadot adapter only accepts marketplace_code=dynadot.",
+                message="DropCatch adapter only accepts marketplace_code=dropcatch.",
                 details={"marketplace_code": marketplace_code},
             )
             metrics.errors += 1
             return FetchAuctionItemsResponse(items=[], errors=[error])
 
         captured_at = _utc_now()
-        url = self._build_page_url(request.page_cursor, limit=request.limit)
+        url = self._resolve_page_url(request.page_cursor)
+        if url is None:
+            error = ModuleError(
+                code="source_unavailable",
+                message="DropCatch listing URL is not configured for this adapter instance.",
+                details={"marketplace_code": marketplace_code},
+            )
+            metrics.errors += 1
+            self._log_error(request, error, occurred_at=captured_at)
+            return FetchAuctionItemsResponse(items=[], errors=[error])
         metrics.pages_attempted += 1
         self.run_logger.page_started(
             ingest_run_id=request.ingest_run_id,
@@ -192,15 +199,11 @@ class DynadotAuctionAdapter:
             return FetchAuctionItemsResponse(items=[], errors=[error])
 
         try:
-            parsed_page = parse_dynadot_listing_page(
-                fetched_page.text,
-                page_url=fetched_page.url,
-                captured_at=captured_at,
-            )
-        except Exception as exc:  # pragma: no cover - defensive boundary for unknown source changes
+            parsed_page = parse_dropcatch_listing_page(fetched_page.text, page_url=fetched_page.url)
+        except Exception as exc:  # pragma: no cover - defensive boundary for source changes
             error = ModuleError(
                 code="parse_error",
-                message="Dynadot page could not be parsed into auction listings.",
+                message="DropCatch page could not be parsed into auction listings.",
                 details={"url": fetched_page.url, "error_type": type(exc).__name__},
             )
             metrics.errors += 1
@@ -209,13 +212,12 @@ class DynadotAuctionAdapter:
 
         items: list[RawAuctionItemObservation] = []
         duplicate_count = 0
-        for listing in parsed_page.listings:
-            raw_payload_json = listing.raw_payload
-            raw_payload_hash = stable_payload_hash(_hashable_listing_payload(raw_payload_json))
-            source_item_id = listing.source_listing_id
+        for listing in parsed_page.listings[: max(0, request.limit)]:
+            raw_payload = listing.raw_payload
+            raw_payload_hash = stable_payload_hash(_hashable_raw_payload(raw_payload))
             dedup_key = DeduplicationKey(
-                marketplace_code=MarketplaceCode.DYNADOT.value,
-                source_item_id=source_item_id,
+                marketplace_code=MarketplaceCode.DROPCATCH.value,
+                source_item_id=listing.source_listing_id,
                 raw_payload_hash=raw_payload_hash,
             )
             if self.dedup_store.seen_before(dedup_key):
@@ -224,11 +226,11 @@ class DynadotAuctionAdapter:
             self.dedup_store.mark_seen(dedup_key, observed_at=captured_at)
             items.append(
                 RawAuctionItemObservation(
-                    marketplace_code=MarketplaceCode.DYNADOT,
-                    source_item_id=source_item_id,
+                    marketplace_code=MarketplaceCode.DROPCATCH,
+                    source_item_id=listing.source_listing_id,
                     source_url=listing.listing_url or fetched_page.url,
                     captured_at=captured_at,
-                    raw_payload_json=raw_payload_json,
+                    raw_payload_json=raw_payload,
                     raw_payload_hash=raw_payload_hash,
                     adapter_version=self.adapter_version,
                     parser_version=self.parser_version,
@@ -249,20 +251,17 @@ class DynadotAuctionAdapter:
             next_page_cursor=parsed_page.next_page_cursor,
             completed_at=_utc_now(),
         )
-        return FetchAuctionItemsResponse(items=items, next_page_cursor=parsed_page.next_page_cursor, errors=[])
+        return FetchAuctionItemsResponse(items=items, next_page_cursor=parsed_page.next_page_cursor, errors=parsed_page.errors)
 
-    def _build_page_url(self, page_cursor: str | None, *, limit: int) -> str:
+    def _resolve_page_url(self, page_cursor: str | None) -> str | None:
         if page_cursor:
             parsed = urlparse(page_cursor)
             if parsed.scheme and parsed.netloc:
                 return page_cursor
-            if page_cursor.startswith("/"):
-                return urljoin(self.config.base_url, page_cursor)
-            query = urlencode({"page": page_cursor, "show": limit or self.config.default_page_size})
-            return urljoin(self.config.base_url, f"{self.config.auction_path}?{query}")
-
-        query = urlencode({"show": limit or self.config.default_page_size})
-        return urljoin(self.config.base_url, f"{self.config.auction_path}?{query}")
+            if self.config.default_listing_url and page_cursor.startswith("/"):
+                return urljoin(self.config.default_listing_url, page_cursor)
+            return page_cursor
+        return self.config.default_listing_url
 
     def _request_headers(self) -> Mapping[str, str]:
         return {
@@ -286,11 +285,9 @@ def _utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def _hashable_listing_payload(normalized_payload: Mapping[str, object]) -> Mapping[str, object]:
-    """Remove page-level parser context from the hash while keeping source fields."""
-
+def _hashable_raw_payload(raw_payload: Mapping[str, object]) -> Mapping[str, object]:
     return {
         key: value
-        for key, value in normalized_payload.items()
+        for key, value in raw_payload.items()
         if key not in {"page_url"}
     }

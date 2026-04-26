@@ -9,13 +9,13 @@ from uuid import UUID
 from sqlalchemy import desc, select
 
 from domain_intel.core.enums import EnrichmentStatus
-from domain_intel.db.models import DerivedSignal, Domain, EnrichmentRun, VerifiedFact, WebsiteCheck
-from domain_intel.enrichment.contracts import DerivedSignalDraft, VerifiedFactDraft, WebsiteCheckDraft
+from domain_intel.db.models import Domain, EnrichmentRun, VerifiedFact, WebsiteCheck
+from domain_intel.enrichment.contracts import VerifiedFactDraft, WebsiteCheckDraft
 from domain_intel.repositories.base import BaseRepository
 
 
 class EnrichmentRepository(BaseRepository):
-    """Repository for enrichment runs, facts, website checks, and signals."""
+    """Repository for enrichment runs, verified facts, and website checks."""
 
     def get_domain(self, domain_id: UUID) -> Domain | None:
         """Load a canonical domain row."""
@@ -107,28 +107,6 @@ class EnrichmentRepository(BaseRepository):
                 valid_until=draft.valid_until,
                 provider_version=draft.provider_version,
                 parser_version=draft.parser_version,
-            )
-            self.session.add(row)
-            rows.append(row)
-        self.session.flush()
-        return rows
-
-    def create_derived_signals(self, domain_id: UUID, drafts: Iterable[DerivedSignalDraft]) -> List[DerivedSignal]:
-        """Persist derived signals and return ORM rows with generated IDs."""
-
-        rows: List[DerivedSignal] = []
-        for draft in drafts:
-            row = DerivedSignal(
-                domain_id=domain_id,
-                auction_id=None,
-                signal_type=draft.signal_type,
-                signal_key=draft.signal_key,
-                signal_value_json=draft.signal_value_json,
-                input_fact_ids=draft.input_fact_ids,
-                input_signal_ids=draft.input_signal_ids,
-                algorithm_version=draft.algorithm_version,
-                confidence_score=draft.confidence_score,
-                generated_at=draft.generated_at,
             )
             self.session.add(row)
             rows.append(row)

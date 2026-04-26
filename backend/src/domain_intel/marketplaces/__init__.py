@@ -1,5 +1,6 @@
 """Marketplace adapter interfaces and implementations."""
 
+from domain_intel.marketplaces.dropcatch import DropCatchAuctionAdapter, DropCatchAuctionAdapterConfig
 from domain_intel.marketplaces.base import (
     DeduplicationKey,
     DeduplicationStore,
@@ -21,6 +22,8 @@ from domain_intel.marketplaces.schemas import (
 __all__ = [
     "DeduplicationKey",
     "DeduplicationStore",
+    "DropCatchAuctionAdapter",
+    "DropCatchAuctionAdapterConfig",
     "FetchAuctionItemsRequest",
     "FetchAuctionItemsResponse",
     "FetchedPage",

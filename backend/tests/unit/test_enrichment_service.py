@@ -8,9 +8,8 @@ from types import SimpleNamespace
 from typing import Dict, Iterable, List
 from uuid import UUID, uuid4
 
-from domain_intel.core.enums import EnrichmentCheckType, EnrichmentStatus, StarterDomainLabel
+from domain_intel.core.enums import EnrichmentCheckType, EnrichmentStatus
 from domain_intel.enrichment.contracts import (
-    DerivedSignalDraft,
     DomainTarget,
     EnrichmentError,
     EnrichmentRequest,
@@ -60,7 +59,6 @@ class FakeRepository:
         self.latest_website_check_time: datetime | None = None
         self.runs: List[FakeRun] = []
         self.persisted_facts: List[VerifiedFactDraft] = []
-        self.persisted_signals: List[DerivedSignalDraft] = []
         self.persisted_website_checks: List[WebsiteCheckDraft] = []
         self.commit_called = False
 
@@ -118,14 +116,6 @@ class FakeRepository:
             rows.append(SimpleNamespace(id=fact_id))
         return rows
 
-    def create_derived_signals(self, domain_id: UUID, drafts: Iterable[DerivedSignalDraft]) -> List[SimpleNamespace]:
-        rows: List[SimpleNamespace] = []
-        for draft in drafts:
-            signal_id = uuid4()
-            self.persisted_signals.append(draft)
-            rows.append(SimpleNamespace(id=signal_id))
-        return rows
-
     def create_website_check(self, domain_id: UUID, draft: WebsiteCheckDraft) -> SimpleNamespace:
         self.persisted_website_checks.append(draft)
         self.latest_website_check_time = draft.checked_at
@@ -155,15 +145,6 @@ class FakeWebsiteProvider:
                     fact_value_json={"http_status": 200, "final_url": f"https://{target.fqdn}"},
                     source_system=self.provider_name,
                     observed_at=observed_at,
-                )
-            ],
-            derived_signals=[
-                DerivedSignalDraft(
-                    signal_type="website_classification",
-                    signal_key="page_category",
-                    signal_value_json={"category": self.status, "is_for_sale": False},
-                    algorithm_version="website-classifier-v1",
-                    generated_at=observed_at,
                 )
             ],
             website_check=WebsiteCheckDraft(
@@ -206,7 +187,7 @@ def _domain(fqdn: str, sld: str) -> FakeDomain:
     )
 
 
-def test_enrichment_service_persists_facts_signals_and_website_checks() -> None:
+def test_enrichment_service_persists_facts_and_website_checks_only() -> None:
     domain = _domain("miamiplumber.com", "miamiplumber")
     repository = FakeRepository(domain)
     observed_at = datetime(2026, 4, 23, 12, 0, tzinfo=timezone.utc)
@@ -238,11 +219,9 @@ def test_enrichment_service_persists_facts_signals_and_website_checks() -> None:
     assert result.status == EnrichmentStatus.COMPLETED
     assert result.website_check_id is not None
     assert result.created_fact_ids
-    assert result.created_signal_ids
     assert repository.commit_called is True
     assert repository.runs[-1].status == EnrichmentStatus.COMPLETED.value
-    assert result.classification_hint is not None
-    assert result.classification_hint.primary_label == StarterDomainLabel.GEO_SERVICE
+    assert repository.persisted_website_checks
 
 
 def test_enrichment_service_marks_partial_when_a_provider_fails() -> None:

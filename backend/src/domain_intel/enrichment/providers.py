@@ -13,7 +13,6 @@ import httpx
 
 from domain_intel.core.enums import EnrichmentStatus, WebsitePageCategory
 from domain_intel.enrichment.contracts import (
-    DerivedSignalDraft,
     DomainTarget,
     EnrichmentError,
     ProviderExecutionResult,
@@ -364,6 +363,10 @@ class HttpWebsiteInspectionProvider:
                     "content_hash": hashlib.sha256(body.encode("utf-8")).hexdigest(),
                     "content_length": len(body),
                     "technology": technologies,
+                    # Category is a provider-side interpretation kept with the observation,
+                    # not a derived pricing or classification signal.
+                    "page_category": category.value,
+                    "page_category_reasons": reasons,
                 },
                 source_system=self.provider_name,
                 observed_at=checked_at,
@@ -382,19 +385,6 @@ class HttpWebsiteInspectionProvider:
                 parser_version=self.parser_version,
             ),
         ]
-        signal = DerivedSignalDraft(
-            signal_type="website_classification",
-            signal_key="page_category",
-            signal_value_json={
-                "category": category.value,
-                "reasons": reasons,
-                "is_for_sale": indicator_payload["for_sale_detected"],
-                "is_parked": indicator_payload["parked_detected"],
-                "is_inactive": category is WebsitePageCategory.BLANK_INACTIVE,
-                "is_redirect": category is WebsitePageCategory.REDIRECT,
-            },
-            algorithm_version="website-classifier-v1",
-        )
         website_check = WebsiteCheckDraft(
             checked_at=checked_at,
             start_url=start_url,
@@ -410,9 +400,11 @@ class HttpWebsiteInspectionProvider:
             provider_name=self.provider_name,
             status=EnrichmentStatus.COMPLETED,
             verified_facts=facts,
-            derived_signals=[signal],
             website_check=website_check,
-            metadata={"page_category": category.value},
+            metadata={
+                "page_category": category.value,
+                "page_category_reasons": reasons,
+            },
         )
 
     def _request_with_retries(self, url: str) -> httpx.Response:
