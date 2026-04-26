@@ -1,0 +1,5 @@
+Alembic migrations for the Domain Intelligence backend.
+
+Run from the backend directory:
+
+    alembic upgrade head

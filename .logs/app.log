@@ -227,3 +227,11 @@
 2026-04-20 18:00:09,688 | INFO | trend_domain.jobs.collect_signals | Combined collection job finished: {'job_name': 'collect_signals', 'status': 'completed', 'raw_items': 6, 'processed_items': 4, 'themes': 2, 'keywords': 5, 'domain_ideas': 7, 'shortlist': 2, 'watchlist': 3, 'rejected': 2}
 2026-04-20 18:00:09,689 | INFO | trend_domain.jobs.runtime | Job process_signals completed.
 2026-04-20 18:00:09,690 | INFO | trend_domain.jobs.process_signals | Processing job finished with no work: {'job_name': 'process_signals', 'run_id': 'process_signals-run', 'raw_items': 0, 'processed_items': 0, 'themes': 0, 'keywords': 0, 'status': 'completed'}
+2026-04-23 20:57:51,274 | INFO | trend_domain.marketplaces.dropcatch.adapter | Fetched 2 DropCatch raw auction items for ingest_run_id=run-2.
+2026-04-23 20:57:51,275 | INFO | trend_domain.marketplaces.dropcatch.adapter | Fetched 1 DropCatch raw auction items for ingest_run_id=run-2.
+2026-04-23 20:57:51,278 | INFO | trend_domain.marketplaces.dropcatch.adapter | Fetched 2 DropCatch raw auction items for ingest_run_id=run-1.
+2026-04-23 20:57:51,279 | INFO | trend_domain.marketplaces.dropcatch.adapter | Fetched 1 DropCatch raw auction items for ingest_run_id=run-3.
+2026-04-23 21:02:31,150 | INFO | trend_domain.marketplaces.dropcatch.adapter | Fetched 2 DropCatch raw auction items for ingest_run_id=run-2.
+2026-04-23 21:02:31,152 | INFO | trend_domain.marketplaces.dropcatch.adapter | Fetched 1 DropCatch raw auction items for ingest_run_id=run-2.
+2026-04-23 21:02:31,154 | INFO | trend_domain.marketplaces.dropcatch.adapter | Fetched 2 DropCatch raw auction items for ingest_run_id=run-1.
+2026-04-23 21:02:31,155 | INFO | trend_domain.marketplaces.dropcatch.adapter | Fetched 1 DropCatch raw auction items for ingest_run_id=run-3.

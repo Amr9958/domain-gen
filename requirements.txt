@@ -1,5 +1,12 @@
 streamlit
 pandas
+fastapi
+uvicorn[standard]
+sqlalchemy>=2.0
+alembic
+psycopg[binary]
+pytest
+httpx
 python-whois
 openai
 google-genai

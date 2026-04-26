@@ -1,0 +1,69 @@
+[
+  {
+    "source_name": "dynadot",
+    "source_listing_id": "dynadot-fixture-1001",
+    "domain_name": "alpha-investor.test",
+    "sld": "alpha-investor",
+    "tld": "test",
+    "auction_type": "expired",
+    "current_price": {
+      "amount": "120.00",
+      "currency": "USD"
+    },
+    "min_next_bid": {
+      "amount": "130.00",
+      "currency": "USD"
+    },
+    "bid_count": 4,
+    "close_time": "2026-04-25T18:30:00Z",
+    "listing_url": "https://www.dynadot.com/market/auction/alpha-investor.test",
+    "traffic": 1240,
+    "revenue": {
+      "amount": "3.50",
+      "currency": "USD"
+    },
+    "renewal_price": {
+      "amount": "11.99",
+      "currency": "USD"
+    },
+    "age_if_available": 9,
+    "source_status": "Open",
+    "canonical_status": "open",
+    "raw_payload": {
+      "extraction_method": "html_table",
+      "page_url": "https://www.dynadot.com/market/auction?show=100"
+    }
+  },
+  {
+    "source_name": "dynadot",
+    "source_listing_id": "dynadot-fixture-1002",
+    "domain_name": "signalvault.test",
+    "sld": "signalvault",
+    "tld": "test",
+    "auction_type": "expired",
+    "current_price": {
+      "amount": "69.00",
+      "currency": "USD"
+    },
+    "min_next_bid": {
+      "amount": "74.00",
+      "currency": "USD"
+    },
+    "bid_count": 1,
+    "close_time": "2026-04-23T20:15:00Z",
+    "listing_url": "https://www.dynadot.com/market/auction/signalvault.test",
+    "traffic": 87,
+    "revenue": null,
+    "renewal_price": {
+      "amount": "12.49",
+      "currency": "USD"
+    },
+    "age_if_available": 2,
+    "source_status": "Closing",
+    "canonical_status": "closing",
+    "raw_payload": {
+      "extraction_method": "html_table",
+      "page_url": "https://www.dynadot.com/market/auction?show=100"
+    }
+  }
+]
