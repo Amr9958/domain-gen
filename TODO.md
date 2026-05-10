@@ -2,6 +2,11 @@
 
 هذا هو المرجع الواحد للنواقص. عند إنهاء أي بند، حدث هذا الملف والوثيقة المرتبطة داخل `docs/` في نفس التغيير.
 
+## P0 - Security and Git Maintenance
+
+- [x] إزالة secrets.toml من تاريخ Git بعد تفعيل GITHUB PUSH PROTECTION (تم إزالتها من commit 90cba0a وتعديله).
+- [ ] فحص دوري للملفات المتجاهلة للتأكد من عدم تسرب مفاتيح برمجية.
+
 ## P0 - ربط التوليد بالـ Backend Valuation
 
 - [x] تنفيذ `jobs/sync_generated_opportunities_to_backend.py` كـ bridge أولي end-to-end.
