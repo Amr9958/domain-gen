@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from domain_intel.api.dependencies import (
     get_alert_service,
     get_auction_service,
+    get_generated_domain_valuation_service,
     get_health_service,
     get_opportunity_service,
     get_report_service,
@@ -26,6 +27,8 @@ from domain_intel.api.schemas import (
     AuctionListResponse,
     CreateWatchlistRequest,
     GenerateAppraisalReportRequest,
+    GeneratedDomainValuationRead,
+    GeneratedDomainValuationRequest,
     HealthResponse,
     SavedSearchCreateRequest,
     SavedSearchListResponse,
@@ -40,6 +43,7 @@ from domain_intel.core.enums import AuctionStatus, ConfidenceLevel, MarketplaceC
 from domain_intel.repositories.auction_repository import AuctionQueryFilters
 from domain_intel.services.alert_service import AlertService, CreateAlertRuleCommand
 from domain_intel.services.auction_service import AuctionService
+from domain_intel.services.generated_domain_service import GeneratedDomainValuationCommand, GeneratedDomainValuationService
 from domain_intel.services.health_service import HealthService
 from domain_intel.services.opportunity_service import OpportunityService, UndervaluationPolicy, UndervaluationQuery
 from domain_intel.services.report_service import GenerateAppraisalReportCommand, ReportInputNotFoundError, ReportService
@@ -137,6 +141,42 @@ def get_appraisal_report(
     return AppraisalReportRead.from_record(record)
 
 
+@router.post(
+    "/generated-domains/valuation",
+    response_model=GeneratedDomainValuationRead,
+    tags=["valuation"],
+)
+def value_generated_domain(
+    request: GeneratedDomainValuationRequest,
+    service: GeneratedDomainValuationService = Depends(get_generated_domain_valuation_service),
+) -> GeneratedDomainValuationRead:
+    """Persist and value one generated domain opportunity."""
+
+    try:
+        record = service.value_generated_domain(
+            GeneratedDomainValuationCommand(
+                domain_name=request.domain_name,
+                extension=request.extension,
+                score=request.score,
+                grade=request.grade,
+                scoring_profile=request.scoring_profile,
+                value_estimate=request.value_estimate,
+                source_theme=request.source_theme,
+                keyword=request.keyword,
+                review_bucket=request.review_bucket,
+                recommendation=request.recommendation,
+                style=request.style,
+                niche=request.niche,
+                buyer_type=request.buyer_type,
+                risk_notes=tuple(request.risk_notes),
+                rejected_reason=request.rejected_reason,
+            )
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return GeneratedDomainValuationRead.from_record(record)
+
+
 @router.get("/watchlists", response_model=WatchlistListResponse, tags=["watchlists"])
 def list_watchlists(
     organization_id: UUID = Query(...),
@@ -210,16 +250,23 @@ def add_watchlist_item(
 def remove_watchlist_item(
     watchlist_id: UUID,
     watchlist_item_id: UUID,
+    organization_id: UUID = Query(...),
+    actor_user_id: UUID = Query(...),
     service: WatchlistService = Depends(get_watchlist_service),
 ) -> WatchlistItemMutationResponse:
     """Remove a watchlist item."""
 
-    removed = service.remove_item(
-        RemoveWatchlistItemCommand(
-            watchlist_id=watchlist_id,
-            watchlist_item_id=watchlist_item_id,
+    try:
+        removed = service.remove_item(
+            RemoveWatchlistItemCommand(
+                watchlist_id=watchlist_id,
+                watchlist_item_id=watchlist_item_id,
+                organization_id=organization_id,
+                actor_user_id=actor_user_id,
+            )
         )
-    )
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
     if not removed:
         raise HTTPException(status_code=404, detail=f"Watchlist item {watchlist_item_id} was not found.")
     return WatchlistItemMutationResponse(created=False, removed=True, errors=[])

@@ -11,6 +11,10 @@ from scoring.interfaces import HardFilterResult
 TRADEMARK_TERMS = {
     "google", "openai", "chatgpt", "microsoft", "apple", "amazon", "meta", "tesla", "nvidia",
     "paypal", "stripe", "uber", "tiktok", "netflix", "anthropic", "claude", "midjourney",
+    "facebook", "instagram", "whatsapp", "youtube", "android", "gmail", "windows", "linkedin",
+    "twitter", "spacex", "slack", "notion", "figma", "shopify", "salesforce", "adobe",
+    "oracle", "github", "gitlab", "discord", "telegram", "binance", "coinbase", "wordpress",
+    "cloudflare", "vercel", "netlify", "azure",
 }
 
 SPAM_TERMS = {
@@ -41,7 +45,14 @@ def _has_ugly_join(name: str, tokens: Sequence[str]) -> bool:
     return False
 
 
-def apply_hard_filters(domain: str, name: str, tld: str, tokens: Sequence[str], profile: str) -> HardFilterResult:
+def apply_hard_filters(
+    domain: str,
+    name: str,
+    tld: str,
+    tokens: Sequence[str],
+    profile: str,
+    allowed_spam_terms: Sequence[str] = (),
+) -> HardFilterResult:
     """Apply non-negotiable quality checks before soft scoring."""
     flags: list[str] = []
     warnings: list[str] = []
@@ -89,7 +100,9 @@ def apply_hard_filters(domain: str, name: str, tld: str, tokens: Sequence[str], 
         cap = min(cap, 60) if cap is not None else 60
         penalty -= 5
 
-    if any(term in name for term in SPAM_TERMS):
+    allowed_spam_term_set = {term.lower() for term in allowed_spam_terms if term}
+    spam_matches = {term for term in SPAM_TERMS if term in name}
+    if spam_matches - allowed_spam_term_set:
         flags.append("spam_pattern")
         warnings.append("contains low-trust commercial wording")
         cap = min(cap, 54) if cap is not None else 54
@@ -101,7 +114,7 @@ def apply_hard_filters(domain: str, name: str, tld: str, tokens: Sequence[str], 
         cap = min(cap, 60) if cap is not None else 60
         penalty -= 4
 
-    if profile in {"geo_local", "seo_exact"} and tld in {".ai", ".io", ".dev"}:
+    if profile in {"geo_local", "seo_authority"} and tld in {".ai", ".io", ".dev"}:
         flags.append("tld_profile_mismatch")
         warnings.append("extension is weak for local or exact-match buyers")
         cap = min(cap, 64) if cap is not None else 64

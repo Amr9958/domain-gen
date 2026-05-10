@@ -9,31 +9,26 @@ from google import genai
 from openai import OpenAI
 
 from config.runtime import get_runtime_secret, get_runtime_value
-from constants import DEFAULT_AI_PROVIDER
+from constants import DEFAULT_AI_PROVIDER, GENERATION_STYLES
+from generator import (
+    GENERATION_STYLE_ALIASES,
+    _normalize_geo_terms,
+    _normalize_requested_styles,
+    _primary_keyword_anchor,
+    _resolve_generation_styles,
+)
 
 
 XAI_PROVIDER = "xAI (Grok)"
 GEMINI_PROVIDER = "Google Gemini"
 OPENROUTER_PROVIDER = "OpenRouter"
-OPENROUTER_FREE_MODEL = "openrouter/free"
+OPENROUTER_FREE_MODEL = "openai/gpt-oss-20b:free"
 OFFLINE_ENGINE_MESSAGE = "سيتم الاعتماد على محرك أوفلاين داخلي محسّن متعدد الأنماط."
-AI_DOMAIN_HINTS = {
-    "agent", "ai", "assistant", "automation", "autonomous", "bot", "copilot", "inference",
-    "llm", "memory", "model", "neural", "orchestration", "prompt", "reasoning", "robot",
-    "token", "vector", "vision", "voice", "workflow",
-}
-GEO_DOMAIN_HINTS = {
-    "cairo", "dubai", "egypt", "gulf", "ksa", "london", "miami", "riyadh",
-    "saudi", "texas", "uae", "uk", "usa",
-}
-DOMAIN_STYLE_GUIDANCE = {
-    "exact": "Exact-match / descriptive names with clear buyer intent and commercial clarity.",
-    "brandable": "Fundable startup-style brandables that sound like real products or companies.",
-    "ai_futuristic": "AI-native or futuristic names for models, agents, copilots, infra, and automation.",
-    "hybrid": "Hybrid names that blend a commercial keyword with a premium brand-like suffix or prefix.",
-    "short": "Short premium-feeling names with clean phonetics and strong memorability.",
-    "outbound": "Easy-to-pitch names with obvious end users and a simple buyer story.",
-    "geo": "Geo-targeted names only when the provided keywords already include a real place.",
+LLM_GENERATION_STYLE_ALIASES = {
+    **GENERATION_STYLE_ALIASES,
+    "ai": "invented",
+    "ai_model": "invented",
+    "action": "exact",
 }
 DOMAIN_GENERATION_SYSTEM_PROMPT = """You are a world-class domain strategist, startup naming expert, SEO analyst, and domain investor with 20 years of experience.
 
@@ -51,10 +46,9 @@ Follow these rules:
 When relevant, use these naming modes:
 - exact / descriptive
 - brandable
-- AI / futuristic
-- hybrid keyword + brand element
+- compound keyword + anchor
 - short premium
-- outbound-friendly
+- invented pronounceable
 - geo, but only when an explicit place already exists in the user input
 
 Return JSON only. Do not include commentary outside the requested JSON schema.
@@ -414,7 +408,7 @@ Return JSON only with this shape:
       "theme": "Agent Security",
       "confidence": 8.1,
       "action": "promote",
-      "suggested_niche": "Tech & AI",
+      "suggested_niche": "Tech & SaaS",
       "buyer_angle": "security automation startups",
       "domain_direction": "agent governance, runtime protection, policy tooling",
       "why_now": "short explanation",
@@ -450,7 +444,7 @@ Return JSON only with this shape:
       "naming_fit": 7.4,
       "action": "promote",
       "suggested_keyword_type": "Naming Component",
-      "suggested_niche": "Tech & AI",
+      "suggested_niche": "Tech & SaaS",
       "buyer_angle": "security tooling startups",
       "why_good": "short explanation",
       "risk_summary": "short explanation"
@@ -609,50 +603,6 @@ def _normalize_bounded_score(value: object, maximum: float = 10.0) -> float:
     return round(max(0.0, min(maximum, parsed_value)), 1)
 
 
-def _choose_domain_generation_styles(niche: str, selected_keywords: list[str]) -> list[str]:
-    """Pick the most relevant naming styles for the current niche and keyword context."""
-    normalized_niche = niche.strip().lower()
-    keyword_set = {keyword.strip().lower() for keyword in selected_keywords if keyword.strip()}
-    signal_terms = keyword_set | set(normalized_niche.replace("&", " ").replace("/", " ").split())
-
-    styles: list[str] = []
-
-    if signal_terms & AI_DOMAIN_HINTS or normalized_niche == "tech & ai":
-        styles.extend(["ai_futuristic", "hybrid", "brandable", "short", "outbound"])
-    elif normalized_niche == "finance & saas":
-        styles.extend(["hybrid", "brandable", "exact", "short", "outbound"])
-    elif normalized_niche in {"health & wellness", "real estate"}:
-        styles.extend(["exact", "hybrid", "outbound", "brandable", "short"])
-    else:
-        styles.extend(["brandable", "hybrid", "exact", "short", "outbound"])
-
-    if keyword_set & GEO_DOMAIN_HINTS:
-        styles.append("geo")
-
-    return list(dict.fromkeys(styles))
-
-
-def _normalize_requested_domain_styles(requested_styles: list[str] | None) -> list[str]:
-    """Normalize explicit UI-selected naming styles while keeping auto exclusive."""
-    if not requested_styles:
-        return ["auto"]
-
-    cleaned_styles: list[str] = []
-    seen: set[str] = set()
-    for style in requested_styles:
-        normalized_style = str(style or "").strip().lower()
-        if not normalized_style or normalized_style in seen:
-            continue
-        seen.add(normalized_style)
-        cleaned_styles.append(normalized_style)
-
-    if not cleaned_styles:
-        return ["auto"]
-    if "auto" in cleaned_styles and len(cleaned_styles) > 1:
-        cleaned_styles = [style for style in cleaned_styles if style != "auto"]
-    return cleaned_styles or ["auto"]
-
-
 def _normalize_geo_context_values(geo_context: str | None) -> list[str]:
     """Normalize explicit geo input for prompt routing and instructions."""
     if not geo_context:
@@ -680,25 +630,32 @@ def _build_domain_generation_prompt(
     """Build a richer domain-generation prompt inspired by investor-style naming modes."""
     cleaned_keywords = [keyword.strip().lower() for keyword in (selected_keywords or []) if keyword.strip()]
     normalized_geo_values = _normalize_geo_context_values(geo_context)
-    normalized_requested_styles = _normalize_requested_domain_styles(requested_styles)
-    if normalized_requested_styles == ["auto"]:
-        chosen_styles = _choose_domain_generation_styles(niche, cleaned_keywords)
-        if normalized_geo_values and "geo" not in chosen_styles:
-            chosen_styles.append("geo")
-    else:
-        chosen_styles = [style for style in normalized_requested_styles if style in DOMAIN_STYLE_GUIDANCE]
+    normalized_requested_styles = _normalize_requested_styles(requested_styles)
+    chosen_styles = _resolve_generation_styles(
+        niche,
+        cleaned_keywords,
+        _normalize_geo_terms(geo_context),
+        normalized_requested_styles,
+    )
     keyword_context = ", ".join(cleaned_keywords[:20]) or "none provided"
+    required_keyword = _primary_keyword_anchor(cleaned_keywords)
     geo_context_text = ", ".join(normalized_geo_values) or "none provided"
     avoid_context = ", ".join(existing[:20]) if existing else "none"
     style_instructions = "\n".join(
-        f"- {style}: {DOMAIN_STYLE_GUIDANCE[style]}"
+        f"- {style}: {GENERATION_STYLES[style].llm_guidance}"
         for style in chosen_styles
-        if style in DOMAIN_STYLE_GUIDANCE
+        if style in GENERATION_STYLES
     )
+    count_per_style = max(1, round(count / max(len(chosen_styles), 1)))
     geo_guardrail = (
         "Geo names are allowed because the input already contains an explicit place."
         if "geo" in chosen_styles
         else "Do not invent geo domains unless a real location is explicitly present in the provided keywords."
+    )
+    keyword_anchor_guardrail = (
+        f"Every returned domain name must visibly include `{required_keyword}` as contiguous letters before the extension."
+        if required_keyword
+        else "Every returned domain name must stay clearly anchored to at least one selected keyword."
     )
     user_prompt = f"""Generate {count} unique domain concepts for this niche: {niche}
 
@@ -710,6 +667,23 @@ Explicit geo context:
 
 Preferred naming styles for this request:
 {style_instructions}
+
+Style distribution:
+- Generate approximately {count_per_style} names per style.
+
+Naming patterns to emulate:
+- stripe: short, smooth, concrete, broadly commercial
+- notion: familiar word with product-grade abstraction
+- linear: clean category feel, easy spelling, serious buyer fit
+- vercel: invented but pronounceable and technical
+- supabase: compound with clear infrastructure association
+
+Negative examples to avoid:
+- promptautomationhub: too long and clunky
+- qckstack: poor pronunciation
+- bestfreeagentai: spammy, low-trust phrasing
+- cryptodentalpay: cross-niche confusion
+- mytopcloud: weak prefix and generic structure
 
 Commercial objectives:
 - maximize resale potential
@@ -726,14 +700,18 @@ Hard constraints:
 - avoid awkward joins, weak grammar, and low-quality random blends
 - keep most names within roughly 4-14 letters before the extension when possible
 - {geo_guardrail}
+- {keyword_anchor_guardrail}
 
 Return ONLY JSON with this shape:
-{{"domains": [{{"name": "example", "style": "hybrid"}}, {{"name": "another", "style": "brandable"}}]}}
+{{"domains": [{{"name": "example", "style": "compound"}}, {{"name": "another", "style": "brandable"}}]}}
 """
     return DOMAIN_GENERATION_SYSTEM_PROMPT, user_prompt
 
 
-def _normalize_llm_domain_suggestions(raw_items: list[object]) -> list[dict[str, str]]:
+def _normalize_llm_domain_suggestions(
+    raw_items: list[object],
+    required_keyword: str = "",
+) -> list[dict[str, str]]:
     """Normalize LLM JSON output into generator-friendly candidate records."""
     suggestions: list[dict[str, str]] = []
     seen: set[str] = set()
@@ -758,9 +736,12 @@ def _normalize_llm_domain_suggestions(raw_items: list[object]) -> list[dict[str,
         normalized_name = raw_name.replace(" ", "")
         if not normalized_name or normalized_name in seen:
             continue
+        if required_keyword and required_keyword not in normalized_name:
+            continue
         seen.add(normalized_name)
 
         normalized_style = raw_style.replace("-", "_").replace(" ", "_") or "llm"
+        normalized_style = LLM_GENERATION_STYLE_ALIASES.get(normalized_style, normalized_style)
         suggestions.append({"name": normalized_name, "method": normalized_style})
 
     return suggestions
@@ -784,7 +765,8 @@ def llm_creative_boost(
         count=count,
     )
     text = call_llm(prompt, system=system, json_mode=True)
-    return _normalize_llm_domain_suggestions(parse_json_response(text, "domains"))
+    required_keyword = _primary_keyword_anchor(selected_keywords or [])
+    return _normalize_llm_domain_suggestions(parse_json_response(text, "domains"), required_keyword=required_keyword)
 
 
 def preflight_generation_model() -> tuple[bool, str]:
@@ -816,18 +798,15 @@ def ai_suggest_words(niche: str, category: str, current_words: list[str]) -> lis
 def ai_suggest_keywords_from_topic(
     topic: str,
     niches: list[str],
-    profiles: list[str],
     existing_keywords: list[str] | None = None,
     count: int = 10,
 ) -> list[str]:
     """Suggest short domain-generation keywords from a user topic plus current context."""
     existing = [keyword.strip().lower() for keyword in (existing_keywords or []) if keyword.strip()]
     niche_context = ", ".join(niches) if niches else "general"
-    profile_context = ", ".join(profiles) if profiles else "startup_brand"
     prompt = (
         f"The user wants domain ideas around this topic: '{topic}'. "
         f"Selected niches: {niche_context}. "
-        f"Selected scoring profiles: {profile_context}. "
         "Apply the investor-style filtering and naming analysis framework before proposing anything. "
         f"Then output only the strongest {count} short, commercially useful keyword seeds for domain generation. "
         "Focus on reusable market language, buyer logic, product naming relevance, and words that combine well into serious brandable domains. "
@@ -893,6 +872,15 @@ def ai_refine_shortlist_domains(
     normalized_items: list[dict[str, object]] = []
     seen_domains: set[str] = set()
     valid_domains = {str(row.get("Domain") or "") for row in trimmed_rows}
+    input_refs_by_domain = {
+        str(row.get("Domain") or ""): {
+            "domain": str(row.get("Domain") or ""),
+            "theme": str(row.get("Theme") or ""),
+            "keyword": str(row.get("Keyword") or ""),
+            "source": "llm_shortlist_refinement",
+        }
+        for row in trimmed_rows
+    }
     for item in raw_items:
         if not isinstance(item, dict):
             continue
@@ -923,6 +911,8 @@ def ai_refine_shortlist_domains(
                 "buyer_angle": str(item.get("buyer_angle") or "").strip(),
                 "why_good": str(item.get("why_good") or "").strip(),
                 "risk_summary": str(item.get("risk_summary") or "").strip(),
+                "provenance": "llm_refinement",
+                "input_ref": input_refs_by_domain.get(domain, {}),
             }
         )
     return normalized_items
@@ -966,6 +956,15 @@ def ai_refine_themes(
     normalized_items: list[dict[str, object]] = []
     seen_themes: set[str] = set()
     valid_themes = {str(row.get("Theme") or "") for row in trimmed_rows}
+    input_refs_by_theme = {
+        str(row.get("Theme") or ""): {
+            "theme": str(row.get("Theme") or ""),
+            "source_types": str(row.get("Source Types") or ""),
+            "source_entities": str(row.get("Source Entities") or ""),
+            "source": "llm_theme_refinement",
+        }
+        for row in trimmed_rows
+    }
     for item in raw_items:
         if not isinstance(item, dict):
             continue
@@ -988,6 +987,8 @@ def ai_refine_themes(
                 "domain_direction": str(item.get("domain_direction") or "").strip(),
                 "why_now": str(item.get("why_now") or "").strip(),
                 "risk_summary": str(item.get("risk_summary") or "").strip(),
+                "provenance": "llm_refinement",
+                "input_ref": input_refs_by_theme.get(theme, {}),
             }
         )
     return normalized_items
@@ -1034,6 +1035,15 @@ def ai_refine_keywords(
         (str(row.get("Keyword") or ""), str(row.get("Theme") or ""))
         for row in trimmed_rows
     }
+    input_refs_by_pair = {
+        (str(row.get("Keyword") or ""), str(row.get("Theme") or "")): {
+            "keyword": str(row.get("Keyword") or ""),
+            "theme": str(row.get("Theme") or ""),
+            "niche": str(row.get("Niche") or ""),
+            "source": "llm_keyword_refinement",
+        }
+        for row in trimmed_rows
+    }
     for item in raw_items:
         if not isinstance(item, dict):
             continue
@@ -1061,6 +1071,8 @@ def ai_refine_keywords(
                 "buyer_angle": str(item.get("buyer_angle") or "").strip(),
                 "why_good": str(item.get("why_good") or "").strip(),
                 "risk_summary": str(item.get("risk_summary") or "").strip(),
+                "provenance": "llm_refinement",
+                "input_ref": input_refs_by_pair.get(key_pair, {}),
             }
         )
     return normalized_items

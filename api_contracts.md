@@ -344,6 +344,51 @@ Refusal response:
 }
 ```
 
+### `POST /v1/generated-domains/valuation`
+Persists and values one generated domain opportunity through the generation-to-backend bridge. The API accepts canonical fields and deferred-model aliases, then normalizes them before creating derived signals, classification, and valuation run records.
+
+Request:
+```json
+{
+  "fullDomain": "atlasai.com",
+  "score": 82.0,
+  "grade": "A",
+  "scoringProfile": "startup_brand",
+  "valueBand": "$500-$2,000",
+  "sourceTheme": "agent workflow",
+  "keyword": "agent",
+  "reviewBucket": "shortlist",
+  "recommendation": "Shortlist",
+  "style": "brandable",
+  "niche": "Tech & SaaS",
+  "buyerType": "startup",
+  "riskNotes": []
+}
+```
+
+Accepted aliases include `fullDomain`/`fqdn` for `domain_name + extension`, `domainName`, `tld`, `scoringProfile`, `valueBand`, `sourceTheme`, `reviewBucket`, `buyerType`, `riskNotes`, and `rejectedReason`.
+
+Response:
+```json
+{
+  "domain_id": "uuid",
+  "fqdn": "atlasai.com",
+  "classification_result_id": "uuid",
+  "valuation_run_id": "uuid",
+  "status": "valued",
+  "refusal_code": null,
+  "refusal_reason": null,
+  "estimated_value_min": "500.00",
+  "estimated_value_max": "1800.00",
+  "estimated_value_point": "1100.00",
+  "currency": "USD",
+  "value_tier": "meaningful",
+  "confidence_level": "medium",
+  "reason_codes": ["legacy_score_strong"],
+  "errors": []
+}
+```
+
 ## AI Explanation Contract
 ### `ExplanationService.generate_explanation`
 Generates readable explanation text from approved structured inputs.
@@ -411,6 +456,13 @@ Response:
 }
 ```
 
+Report input requirements:
+- `domain_id` and `valuation_run_id` must refer to the same stored valuation run.
+- `created_by_user_id` is required for organization-scoped generation.
+- `valued` and `needs_review` reports require the valuation run classification reference produced before pricing.
+- `refused` reports must keep pricing fields null and surface `refusal_code`/`refusal_reason` in `final_verdict`.
+- AI explanations are report prose only and may be included only when `validation_status` is `validated` and text is non-empty.
+
 ## Watchlist and Alert Contracts
 ### `WatchlistService.add_item`
 Request:
@@ -433,6 +485,19 @@ Response:
 }
 ```
 
+### `WatchlistService.remove_item`
+Request:
+```json
+{
+  "organization_id": "uuid",
+  "actor_user_id": "uuid",
+  "watchlist_id": "uuid",
+  "watchlist_item_id": "uuid"
+}
+```
+
+The repository must verify that the watchlist belongs to `organization_id` and that `actor_user_id` belongs to that organization before deleting the item.
+
 ### `AlertService.evaluate_rules`
 Request:
 ```json
@@ -453,6 +518,8 @@ Response:
 }
 ```
 
+Event deduplication is based on `alert_rule_id + event_key`. Rule-threshold vocabulary is centralized per `rule_type`; for example, `price_below_threshold` requires `amount`, and `score_above_threshold` requires `score_key` and `min_score`.
+
 ### `AlertDeliveryService.deliver_event`
 Request:
 ```json
@@ -472,6 +539,8 @@ Response:
 }
 ```
 
+Delivery attempts are persisted per `alert_event_id + channel`; repeated attempts update the same delivery row and increment `attempt_count`.
+
 ## Public REST API Shape
 Initial public API endpoints should follow this shape:
 - `POST /v1/ingest-runs`: Start an ingestion run for an approved marketplace.
@@ -481,6 +550,7 @@ Initial public API endpoints should follow this shape:
 - `POST /v1/domains/{fqdn}/enrich`: Request enrichment refresh.
 - `POST /v1/domains/{fqdn}/classify`: Request classification.
 - `POST /v1/domains/{fqdn}/value`: Request valuation.
+- `POST /v1/generated-domains/valuation`: Persist and value one generated domain opportunity.
 - `POST /v1/reports/appraisals`: Generate an appraisal report.
 - `GET /v1/reports/appraisals/{id}`: Read an appraisal report.
 - `GET /v1/watchlists`: List watchlists.

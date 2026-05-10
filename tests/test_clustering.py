@@ -42,6 +42,29 @@ class ClusteringTests(unittest.TestCase):
         self.assertGreaterEqual(clustered[0].shared_term_count, 1)
         self.assertNotEqual(clustered[0].cluster_key, clustered[2].cluster_key)
 
+    def test_alias_terms_help_related_items_cluster_together(self) -> None:
+        items = [
+            make_content_item(
+                title="Agentic workflow guardrails",
+                summary="autonomous policy controls for teams",
+                tags=("agentic", "guardrails"),
+                content_hash="alias-1",
+                source_name="github",
+            ),
+            make_content_item(
+                title="Agent workflow guardrail policies",
+                summary="agent automation policy runtime",
+                tags=("agent", "policy"),
+                content_hash="alias-2",
+                source_name="hacker_news",
+            ),
+        ]
+
+        clustered = cluster_processed_items(items)
+
+        self.assertEqual(clustered[0].cluster_key, clustered[1].cluster_key)
+        self.assertTrue(any("agent" in term for term in clustered[0].cluster_terms))
+
 
 if __name__ == "__main__":
     unittest.main()

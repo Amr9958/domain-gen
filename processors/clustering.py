@@ -21,6 +21,20 @@ GENERIC_CLUSTER_TERMS = {
     "application", "app", "feature", "framework", "guide", "latest", "library",
     "platform", "release", "service", "solution", "support", "system", "update",
 }
+TERM_ALIASES = {
+    "agentic": "agent",
+    "agents": "agent",
+    "assistants": "assistant",
+    "autonomous": "automation",
+    "llms": "llm",
+    "models": "model",
+    "genai": "ai",
+    "generative": "ai",
+    "workflows": "workflow",
+    "guardrails": "guardrail",
+    "policies": "policy",
+    "payments": "payment",
+}
 TOKEN_RE = re.compile(r"[a-z0-9][a-z0-9+/\-]{2,}")
 
 
@@ -42,8 +56,8 @@ def _normalize_term(term: str) -> str:
     if normalized.endswith("ies") and len(normalized) > 4:
         return normalized[:-3] + "y"
     if normalized.endswith("s") and len(normalized) > 4 and not normalized.endswith("ss"):
-        return normalized[:-1]
-    return normalized
+        normalized = normalized[:-1]
+    return TERM_ALIASES.get(normalized, normalized)
 
 
 def _extract_weighted_terms(item: ContentItem) -> Counter[str]:

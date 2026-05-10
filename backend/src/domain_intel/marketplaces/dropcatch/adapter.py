@@ -40,6 +40,7 @@ class DropCatchAuctionAdapterConfig:
     min_delay_between_requests_seconds: float = 1.5
     max_pages_per_run: int = 10
     respect_robots_txt: bool = True
+    production_fetch_enabled: bool = False
     allowed_hosts: tuple[str, ...] = ("www.dropcatch.com", "dropcatch.com", "dropcatch.test")
     retry_policy: RetryPolicy = field(default_factory=RetryPolicy)
 
@@ -169,6 +170,15 @@ class DropCatchAuctionAdapter:
             metrics.errors += 1
             self._log_error(request, error, occurred_at=captured_at)
             return FetchAuctionItemsResponse(items=[], errors=[error])
+        if not self.config.production_fetch_enabled and not _is_fixture_url(url):
+            error = ModuleError(
+                code="source_not_approved",
+                message="DropCatch production fetching is disabled until an official source or explicit permission is approved.",
+                details={"marketplace_code": marketplace_code, "url": url},
+            )
+            metrics.errors += 1
+            self._log_error(request, error, occurred_at=captured_at)
+            return FetchAuctionItemsResponse(items=[], errors=[error])
         metrics.pages_attempted += 1
         self.run_logger.page_started(
             ingest_run_id=request.ingest_run_id,
@@ -291,3 +301,7 @@ def _hashable_raw_payload(raw_payload: Mapping[str, object]) -> Mapping[str, obj
         for key, value in raw_payload.items()
         if key not in {"page_url"}
     }
+
+
+def _is_fixture_url(url: str) -> bool:
+    return urlparse(url).hostname == "dropcatch.test"

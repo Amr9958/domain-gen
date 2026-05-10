@@ -388,8 +388,13 @@ def compose_appraisal_report(
                 text=explanation.text,
             )
             for explanation in report_input.validated_ai_explanations
+            if _is_validated_ai_explanation(explanation)
         ],
     )
+
+
+def _is_validated_ai_explanation(explanation: ReportAIExplanationInput) -> bool:
+    return explanation.validation_status == "validated" and bool(explanation.text.strip())
 
 
 def _build_classification(classification: Optional[ReportClassificationInput]) -> ClassificationContract:

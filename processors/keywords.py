@@ -27,32 +27,44 @@ COMMERCIAL_TERMS = {
     "storage", "vector", "workflow",
 }
 NICHE_KEYWORDS = {
-    "Tech & AI": {
+    "Tech & SaaS": {
         "agent", "ai", "api", "assistant", "automation", "cloud", "copilot", "data",
         "deploy", "developer", "devops", "engine", "infra", "inference", "llm", "model",
         "monitoring", "observability", "orchestration", "platform", "sdk", "search",
         "security", "software", "vector", "workflow",
     },
-    "Finance & SaaS": {
+    "Finance & Fintech": {
         "accounting", "banking", "billing", "compliance", "credit", "finance", "fintech",
         "fraud", "invoice", "ledger", "payment", "pricing", "revenue", "risk", "saas",
         "subscription", "tax", "treasury",
     },
-    "E-commerce": {
+    "E-commerce & Retail": {
         "brand", "cart", "catalog", "checkout", "commerce", "conversion", "merchant",
         "pricing", "retail", "seller", "shop", "shopping", "store",
     },
-    "Creative & Arts": {
-        "audio", "canvas", "content", "creator", "design", "image", "media", "music",
-        "photo", "render", "studio", "video", "visual",
+    "Travel & Lifestyle": {
+        "booking", "destination", "guide", "hotel", "journey", "lifestyle", "local",
+        "resort", "stay", "tour", "travel", "trip",
     },
-    "Health & Wellness": {
+    "Health & Medical": {
         "care", "clinic", "doctor", "fitness", "health", "medical", "nutrition",
         "patient", "therapy", "wellness",
     },
-    "Real Estate": {
+    "Real Estate & Property": {
         "broker", "housing", "lease", "listing", "mortgage", "property", "realestate",
         "rental", "tenant",
+    },
+    "Education & Learning": {
+        "academy", "class", "course", "education", "learn", "lesson", "school", "skill",
+        "student", "study", "teacher", "training", "tutor",
+    },
+    "Legal & Professional": {
+        "advisory", "attorney", "case", "compliance", "contract", "counsel", "law",
+        "legal", "professional", "tax",
+    },
+    "Crypto & Web3": {
+        "chain", "crypto", "dao", "defi", "ledger", "nft", "protocol", "token",
+        "wallet", "web3", "yield",
     },
 }
 BUYER_HINTS = {
@@ -72,9 +84,9 @@ BUYER_HINTS = {
         "cart", "checkout", "commerce", "conversion", "merchant", "retail", "seller",
         "shopping", "store",
     },
-    "Creators & Agencies": {
-        "audio", "content", "creator", "design", "image", "media", "render", "studio",
-        "video", "visual",
+    "Travel Operators": {
+        "booking", "destination", "guide", "hotel", "journey", "resort", "stay", "tour",
+        "travel", "trip",
     },
     "Health Startups": {
         "care", "clinic", "fitness", "health", "medical", "patient", "therapy", "wellness",
@@ -82,21 +94,33 @@ BUYER_HINTS = {
     "Property Operators": {
         "broker", "housing", "lease", "listing", "mortgage", "property", "rental", "tenant",
     },
+    "Education Operators": {
+        "academy", "class", "course", "education", "learn", "school", "student", "training", "tutor",
+    },
+    "Legal & Professional Services": {
+        "advisory", "attorney", "case", "compliance", "contract", "counsel", "law", "legal", "tax",
+    },
+    "Web3 Operators": {
+        "chain", "crypto", "dao", "defi", "ledger", "protocol", "token", "wallet", "web3",
+    },
 }
 NICHE_FALLBACK_BY_SOURCE = {
-    SourceType.REPOSITORY: "Tech & AI",
-    SourceType.DEVELOPER: "Tech & AI",
-    SourceType.RELEASE: "Tech & AI",
-    SourceType.PRODUCT: "Tech & AI",
-    SourceType.NEWS: "Tech & AI",
+    SourceType.REPOSITORY: "Tech & SaaS",
+    SourceType.DEVELOPER: "Tech & SaaS",
+    SourceType.RELEASE: "Tech & SaaS",
+    SourceType.PRODUCT: "Tech & SaaS",
+    SourceType.NEWS: "Tech & SaaS",
 }
 BUYER_FALLBACK_BY_NICHE = {
-    "Tech & AI": "Developers & AI Startups",
-    "Finance & SaaS": "Fintech Operators",
-    "E-commerce": "E-commerce Operators",
-    "Creative & Arts": "Creators & Agencies",
-    "Health & Wellness": "Health Startups",
-    "Real Estate": "Property Operators",
+    "Tech & SaaS": "Developers & AI Startups",
+    "Finance & Fintech": "Fintech Operators",
+    "E-commerce & Retail": "E-commerce Operators",
+    "Travel & Lifestyle": "Travel Operators",
+    "Health & Medical": "Health Startups",
+    "Real Estate & Property": "Property Operators",
+    "Education & Learning": "Education Operators",
+    "Legal & Professional": "Legal & Professional Services",
+    "Crypto & Web3": "Web3 Operators",
 }
 
 
@@ -209,8 +233,8 @@ def _pick_niche(term_counter: Counter[str], signals: list[ProcessedSignal]) -> s
     source_counter = Counter(signal.item.source_type for signal in signals)
     if source_counter:
         top_source = source_counter.most_common(1)[0][0]
-        return NICHE_FALLBACK_BY_SOURCE.get(top_source, "Tech & AI")
-    return "Tech & AI"
+        return NICHE_FALLBACK_BY_SOURCE.get(top_source, "Tech & SaaS")
+    return "Tech & SaaS"
 
 
 def _pick_buyer_type(term_counter: Counter[str], niche: str) -> str:

@@ -57,7 +57,7 @@ class AppSettings:
     supabase_timeout_seconds: int = _get_int("SUPABASE_TIMEOUT_SECONDS", 15)
     use_supabase: bool = _get_bool("USE_SUPABASE", False)
 
-    default_ai_provider: str = os.getenv("DEFAULT_AI_PROVIDER", "xAI (Grok)")
+    default_ai_provider: str = os.getenv("DEFAULT_AI_PROVIDER", "OpenRouter")
 
     @property
     def log_file_path(self) -> Path:

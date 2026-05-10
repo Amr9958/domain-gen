@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
-from collections import Counter
-from datetime import datetime
+from decimal import Decimal
+from pathlib import Path
+import sys
+from typing import Any
 
 import pandas as pd
 import streamlit as st
@@ -19,15 +21,12 @@ from constants import (
     APP_TITLE,
     DEFAULT_AI_PROVIDER,
     DEFAULT_EXTENSIONS,
-    DEFAULT_SCORING_PROFILE,
     EXTENSION_OPTIONS,
     GENERATION_STYLE_LABELS,
     GENERATION_STYLE_OPTIONS,
     NICHE_OPTIONS,
-    SCORING_PROFILES,
 )
 from core.logging import configure_logging, get_logger
-from generator import generate_domains
 from integrations import get_supabase_manager
 from providers import (
     ai_suggest_keywords_from_topic,
@@ -35,17 +34,19 @@ from providers import (
     preflight_generation_model,
     test_connection,
 )
-from scoring import evaluate_domain, get_profile
+from scoring import get_profile
 from storage import add_to_portfolio, get_portfolio, init_db
 from utils.browser import open_namecheap_purchase
 from utils.export import dataframe_to_excel_bytes
 from utils.session import initialize_session_state, reset_all_app_data
 from utils.trend_dashboard import render_trend_intelligence_tab as render_shared_trend_intelligence_tab
 from utils.word_banks import deduplicate_words, save_word_banks
+from workflows.generation import GRADE_ORDER, GenerationWorkflowRequest, run_generation_workflow
 
 
-GRADE_ORDER = ["A+", "A", "B", "C", "D", "Reject"]
 logger = get_logger("app")
+PROJECT_ROOT = Path(__file__).resolve().parent
+BACKEND_SRC = PROJECT_ROOT / "backend" / "src"
 
 
 def _normalize_keywords_for_debug(keywords: str) -> list[str]:
@@ -106,41 +107,117 @@ def render_generation_debug_panel(keywords: str) -> None:
             st.code(", ".join(sample_candidates), language="text")
 
 
-def appraisal_to_dict(appraisal) -> dict:
-    """Convert a structured appraisal dataclass into a session-friendly dict."""
-    return {
-        "domain": appraisal.domain,
-        "name": appraisal.name,
-        "tld": appraisal.tld,
-        "profile": appraisal.profile,
-        "niche": "",
-        "final_score": appraisal.final_score,
-        "grade": appraisal.grade,
-        "tier": appraisal.tier,
-        "value": appraisal.value,
-        "subscores": dict(appraisal.subscores),
-        "flags": list(appraisal.flags),
-        "warnings": list(appraisal.warnings),
-        "explanation": appraisal.explanation,
-        "rejected": appraisal.rejected,
-        "method": "unknown",
-        "source_name": "",
-        "is_transformed": False,
-        "improvement_delta": 0,
-        "source_domain": "",
-    }
+def _format_backend_money(value: Any, currency: str) -> str:
+    """Format backend valuation decimals for compact Streamlit display."""
+    if value is None:
+        return ""
+    amount = Decimal(str(value)).quantize(Decimal("1"))
+    return f"{currency} {amount:,}"
+
+
+def _backend_value_label(valuation: dict[str, Any] | None) -> str:
+    """Return a short backend valuation label for tables and result cards."""
+    if not valuation:
+        return "Not synced"
+    if valuation.get("status") != "valued":
+        return str(valuation.get("status_label") or valuation.get("status") or "Needs review")
+    low = valuation.get("estimated_value_min")
+    high = valuation.get("estimated_value_max")
+    currency = str(valuation.get("currency") or "USD")
+    if low is None or high is None:
+        return str(valuation.get("status_label") or "Valued")
+    return f"{_format_backend_money(low, currency)} - {_format_backend_money(high, currency)}"
+
+
+def _backend_status_label(valuation: dict[str, Any] | None) -> str:
+    if not valuation:
+        return "Not synced"
+    status = str(valuation.get("status") or "unknown").replace("_", " ").title()
+    tier = str(valuation.get("value_tier") or "").replace("_", " ").title()
+    confidence = str(valuation.get("confidence_level") or "").replace("_", " ").title()
+    parts = [status]
+    if tier:
+        parts.append(tier)
+    if confidence:
+        parts.append(f"{confidence} confidence")
+    return " · ".join(parts)
+
+
+def load_backend_valuation_map(domains: list[str]) -> dict[str, dict[str, Any]]:
+    """Load latest backend valuations for displayed domains when backend DB is available."""
+    unique_domains = sorted({domain.strip().lower() for domain in domains if domain.strip()})
+    if not unique_domains:
+        return {}
+
+    try:
+        if str(BACKEND_SRC) not in sys.path:
+            sys.path.insert(0, str(BACKEND_SRC))
+        from sqlalchemy import desc, select
+
+        from domain_intel.db.models import Domain, ValuationRun
+        from domain_intel.db.session import SessionLocal
+    except Exception as exc:
+        logger.debug("Backend valuation imports unavailable: %s", exc)
+        return {}
+
+    valuation_map: dict[str, dict[str, Any]] = {}
+    try:
+        with SessionLocal() as session:
+            for fqdn in unique_domains:
+                domain = session.scalar(select(Domain).where(Domain.fqdn == fqdn))
+                if domain is None:
+                    continue
+                valuation = session.scalar(
+                    select(ValuationRun)
+                    .where(ValuationRun.domain_id == domain.id)
+                    .order_by(desc(ValuationRun.created_at))
+                    .limit(1)
+                )
+                if valuation is None:
+                    continue
+                reason_codes = [
+                    {
+                        "code": reason.code,
+                        "label": reason.label,
+                        "direction": reason.direction,
+                        "explanation": reason.explanation,
+                    }
+                    for reason in valuation.reason_codes[:3]
+                ]
+                valuation_map[fqdn] = {
+                    "status": valuation.status.value,
+                    "status_label": valuation.status.value.replace("_", " ").title(),
+                    "refusal_code": valuation.refusal_code.value if valuation.refusal_code else None,
+                    "refusal_reason": valuation.refusal_reason,
+                    "estimated_value_min": valuation.estimated_value_min,
+                    "estimated_value_max": valuation.estimated_value_max,
+                    "estimated_value_point": valuation.estimated_value_point,
+                    "currency": valuation.currency,
+                    "value_tier": valuation.value_tier.value,
+                    "confidence_level": valuation.confidence_level.value,
+                    "created_at": valuation.created_at,
+                    "reason_codes": reason_codes,
+                }
+    except Exception as exc:
+        logger.debug("Backend valuation lookup unavailable: %s", exc)
+        return {}
+
+    return valuation_map
 
 
 def build_results_table(appraisals: list[dict], status_map: dict[str, str]) -> pd.DataFrame:
     """Build a compact comparison table for generated domains."""
     rows = []
     for appraisal in appraisals:
+        backend_valuation = appraisal.get("backend_valuation")
         rows.append(
             {
                 "Domain": appraisal["domain"],
                 "Niche": appraisal.get("niche", ""),
                 "Extension": appraisal["tld"],
                 "Score": appraisal["final_score"],
+                "Backend Valuation": _backend_value_label(backend_valuation),
+                "Backend Status": _backend_status_label(backend_valuation),
                 "Grade": appraisal["grade"],
                 "Method": str(appraisal.get("method", "")).title(),
                 "Delta": appraisal.get("improvement_delta", 0),
@@ -272,19 +349,22 @@ def render_methodology_status(use_llm: bool, use_availability: bool) -> None:
         st.markdown(
             "\n".join(
                 [
-                    "- `Combine`: implemented via word + word and keyword + word generation.",
-                    "- `Twist`: implemented as a phonetic brand variation step on base candidates.",
-                    "- `Cut`: implemented as a shortening step on base candidates.",
-                    f"- `Invent`: implemented through an internal invented-name generator, with optional `LLM Creative Boost`. LLM status: {llm_status}.",
+                    "- `Exact`: keyword + commercial head term generation.",
+                    "- `Brandable`: startup-style names derived from keyword roots.",
+                    "- `Compound`: keyword + anchor suffix generation.",
+                    "- `Short`: compact 4-6 character name generation.",
+                    f"- `Invented`: pronounceable invented-name generation, with optional `LLM Creative Boost`. LLM status: {llm_status}.",
+                    "- `Geo`: location + service generation when explicit geo context exists.",
                 ]
             )
         )
-        st.caption("Current generator now mixes structured combining, deterministic transformations, and optional LLM ideation.")
+        st.caption("Current generator uses the unified generation styles from constants.py plus optional LLM ideation.")
 
         st.markdown("### Filters")
         st.markdown(
             "\n".join(
                 [
+                    "- `Scoring profile`: auto-detected per domain from tokens, TLD, and niche.",
                     "- `Pronunciation score`: implemented.",
                     "- `Brand score`: implemented.",
                     "- `Market fit`: implemented.",
@@ -318,7 +398,7 @@ def _normalize_generation_styles(selected_styles: list[str]) -> list[str]:
     return cleaned_styles or ["auto"]
 
 
-def render_sidebar() -> tuple[list[str], list[str], list[str], str, str, int, list[str], bool, bool]:
+def render_sidebar() -> tuple[list[str], list[str], str, str, int, list[str], bool, bool]:
     """Render sidebar controls and return selected generator and scoring options."""
     if st.sidebar.button("🗑️ Reset All App Data", type="secondary"):
         reset_all_app_data()
@@ -396,21 +476,7 @@ def render_sidebar() -> tuple[list[str], list[str], list[str], str, str, int, li
         selected_niches = [NICHE_OPTIONS[0]]
     st.session_state.selected_niches = selected_niches
 
-    selected_profiles = st.sidebar.multiselect(
-        "Scoring Profile",
-        SCORING_PROFILES,
-        default=st.session_state.get("selected_profiles", [DEFAULT_SCORING_PROFILE]),
-        format_func=lambda key: get_profile(key).label,
-    )
-    if not selected_profiles:
-        selected_profiles = [DEFAULT_SCORING_PROFILE]
-    st.session_state.selected_profiles = selected_profiles
-    st.session_state.scoring_profile = selected_profiles[0]
-
-    if len(selected_profiles) == 1:
-        st.sidebar.caption(get_profile(selected_profiles[0]).description)
-    else:
-        st.sidebar.caption(f"{len(selected_profiles)} scoring profiles selected.")
+    st.sidebar.caption("Scoring profile is detected automatically per generated domain.")
 
     pending_keywords = st.session_state.pop("pending_keywords", None)
     if pending_keywords is not None:
@@ -451,7 +517,7 @@ def render_sidebar() -> tuple[list[str], list[str], list[str], str, str, int, li
         height=90,
         key="keyword_topic",
     )
-    if st.sidebar.button("✨ Suggest Keywords with AI", help="Generate keyword seeds from your topic, niches, and selected profiles."):
+    if st.sidebar.button("✨ Suggest Keywords with AI", help="Generate keyword seeds from your topic and selected niches."):
         if not topic_prompt.strip():
             st.sidebar.warning("اكتب جملة أو موضوع أولًا.")
         else:
@@ -459,7 +525,6 @@ def render_sidebar() -> tuple[list[str], list[str], list[str], str, str, int, li
                 suggestions = ai_suggest_keywords_from_topic(
                     topic=topic_prompt,
                     niches=selected_niches,
-                    profiles=selected_profiles,
                     existing_keywords=[keyword.strip() for keyword in keywords.split(",") if keyword.strip()],
                 )
             if suggestions:
@@ -480,7 +545,6 @@ def render_sidebar() -> tuple[list[str], list[str], list[str], str, str, int, li
         st.sidebar.caption("Uses conservative WHOIS/DNS signals for the exact domain. Unknown is preferred over false availability claims.")
     return (
         selected_niches,
-        selected_profiles,
         selected_generation_styles,
         keywords,
         geo_context,
@@ -493,7 +557,6 @@ def render_sidebar() -> tuple[list[str], list[str], list[str], str, str, int, li
 
 def render_generator_tab(
     niches: list[str],
-    scoring_profiles: list[str],
     generation_styles: list[str],
     keywords: str,
     geo_context: str,
@@ -504,10 +567,9 @@ def render_generator_tab(
 ) -> None:
     """Render the main domain generation workflow."""
     st.title("🔥 DomainTrade Pro V5 — Professional Scoring")
-    profile_labels = ", ".join(get_profile(profile).label for profile in scoring_profiles)
     niche_labels = ", ".join(niches)
     style_labels = ", ".join(GENERATION_STYLE_LABELS.get(style, style) for style in generation_styles)
-    st.caption(f"Niches: {niche_labels} · Profiles: {profile_labels} · Styles: {style_labels}")
+    st.caption(f"Niches: {niche_labels} · Profiles: Auto-detected · Styles: {style_labels}")
     if geo_context:
         st.caption(f"Geo Context: {geo_context}")
     render_methodology_status(use_llm=use_llm, use_availability=use_availability)
@@ -538,93 +600,27 @@ def render_generator_tab(
     if st.session_state.get("generating", False):
         with st.spinner("جاري التوليد والتقييم الاحترافي..."):
             effective_use_llm = st.session_state.get("generation_use_llm", False)
-            generated_candidates_map: dict[str, dict] = {}
-            for niche in niches:
-                for candidate in generate_domains(
-                    niche=niche,
-                    use_llm=effective_use_llm,
-                    word_banks=st.session_state.word_banks,
-                    requested_styles=generation_styles,
-                    keywords_str=keywords,
+            workflow_result = run_generation_workflow(
+                GenerationWorkflowRequest(
+                    niches=niches,
+                    generation_styles=generation_styles,
+                    keywords=keywords,
                     geo_context=geo_context,
                     num_per_tier=num_per_tier,
-                ):
-                    candidate_name = candidate["name"]
-                    if candidate_name not in generated_candidates_map:
-                        generated_candidates_map[candidate_name] = candidate
-
-            generated_candidates = list(generated_candidates_map.values())
-            st.session_state.last_generation_keyword_list = _normalize_keywords_for_debug(keywords)
-            st.session_state.last_generation_geo_context = geo_context
-            st.session_state.last_generation_style_list = list(generation_styles)
-            st.session_state.last_generation_candidate_count = len(generated_candidates)
-            st.session_state.last_generation_method_counts = dict(
-                Counter(str(candidate.get("method", "unknown")) for candidate in generated_candidates)
+                    extensions=extensions,
+                    use_llm=effective_use_llm,
+                    word_banks=st.session_state.word_banks,
+                )
             )
-            st.session_state.last_generation_sample_candidates = [
-                str(candidate["name"]) for candidate in generated_candidates[:12]
-            ]
-            categories = {grade: [] for grade in GRADE_ORDER}
-            history_rows = []
-            appraisal_records: list[dict] = []
-            appraisal_lookup: dict[tuple[str, str, str, str], dict] = {}
-
-            for niche in niches:
-                for candidate in generated_candidates:
-                    name = candidate["name"]
-                    for ext in extensions:
-                        full_domain = f"{name}{ext}"
-                        for scoring_profile in scoring_profiles:
-                            profile_config = get_profile(scoring_profile)
-                            appraisal = evaluate_domain(
-                                full_domain,
-                                profile=scoring_profile,
-                                niche=niche,
-                                word_banks=st.session_state.word_banks,
-                            )
-                            appraisal_dict = appraisal_to_dict(appraisal)
-                            appraisal_dict["niche"] = niche
-                            appraisal_dict["method"] = candidate.get("method", "combine")
-                            appraisal_dict["source_name"] = candidate.get("source_name", "")
-                            appraisal_dict["is_transformed"] = candidate.get("is_transformed", False)
-                            appraisal_records.append(appraisal_dict)
-                            appraisal_lookup[(niche, scoring_profile, ext, name)] = appraisal_dict
-                            history_rows.append(
-                                {
-                                    "Domain": full_domain,
-                                    "Name": name,
-                                    "Extension": ext,
-                                    "Grade": appraisal.grade,
-                                    "Score": appraisal.final_score,
-                                    "Method": str(candidate.get("method", "combine")).title(),
-                                    "Profile": profile_config.label,
-                                    "Value": appraisal.value,
-                                    "Niche": niche,
-                                    "Explanation": appraisal.explanation,
-                                    "Date": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                                }
-                            )
-
-            for appraisal_dict in appraisal_records:
-                if appraisal_dict["is_transformed"] and appraisal_dict["source_name"]:
-                    source_key = (
-                        appraisal_dict["niche"],
-                        appraisal_dict["profile"],
-                        appraisal_dict["tld"],
-                        appraisal_dict["source_name"],
-                    )
-                    source_appraisal = appraisal_lookup.get(source_key)
-                    if source_appraisal:
-                        appraisal_dict["source_domain"] = source_appraisal["domain"]
-                        appraisal_dict["improvement_delta"] = appraisal_dict["final_score"] - source_appraisal["final_score"]
-
-                categories[appraisal_dict["grade"]].append(appraisal_dict)
-
-            for grade in categories:
-                categories[grade].sort(key=lambda item: item["final_score"], reverse=True)
-
-            st.session_state.last_categories = categories
-            st.session_state.history.extend(history_rows)
+            debug_snapshot = workflow_result.debug_snapshot
+            st.session_state.last_generation_keyword_list = debug_snapshot.keyword_list
+            st.session_state.last_generation_geo_context = debug_snapshot.geo_context
+            st.session_state.last_generation_style_list = debug_snapshot.style_list
+            st.session_state.last_generation_candidate_count = debug_snapshot.candidate_count
+            st.session_state.last_generation_method_counts = debug_snapshot.method_counts
+            st.session_state.last_generation_sample_candidates = debug_snapshot.sample_candidates
+            st.session_state.last_categories = workflow_result.categories
+            st.session_state.history.extend(workflow_result.history_rows)
             st.session_state.generating = False
             st.session_state.show_results = True
         st.rerun()
@@ -636,103 +632,154 @@ def render_generator_tab(
         status_map: dict[str, str] = {}
         candidate_count = st.session_state.get("last_generation_candidate_count", 0)
         st.caption(f"Raw candidate pool before scoring: {candidate_count}")
+        displayed_appraisals = [
+            appraisal
+            for grade in GRADE_ORDER
+            for appraisal in categories.get(grade, [])[:num_per_tier]
+        ]
+        backend_valuation_map = load_backend_valuation_map([appraisal["domain"] for appraisal in displayed_appraisals])
+        for appraisal in displayed_appraisals:
+            appraisal["backend_valuation"] = backend_valuation_map.get(str(appraisal["domain"]).lower())
+        backend_synced_count = sum(1 for appraisal in displayed_appraisals if appraisal.get("backend_valuation"))
+        backend_valued_count = sum(
+            1
+            for appraisal in displayed_appraisals
+            if (appraisal.get("backend_valuation") or {}).get("status") == "valued"
+        )
+        status_col1, status_col2, status_col3, status_col4 = st.columns(4)
+        status_col1.metric("Raw Pool", candidate_count)
+        status_col2.metric("Displayed", len(displayed_appraisals))
+        status_col3.metric("Backend Synced", backend_synced_count)
+        status_col4.metric("Backend Valued", backend_valued_count)
 
-        for grade in GRADE_ORDER:
-            items = categories.get(grade, [])[:num_per_tier]
-            if not items:
-                continue
+        if backend_valuation_map:
+            st.success(f"Backend valuations loaded for {len(backend_valuation_map)} displayed domains.")
+        else:
+            st.info("Backend valuations: not synced or backend DB unavailable.")
 
-            st.subheader(f"{grade} Domains")
-            for item_index, appraisal in enumerate(items):
-                full_domain = appraisal["domain"]
-                row_key = f"{grade}_{item_index}_{full_domain}"
-                all_generated_full.append(full_domain)
-                comparison_appraisals.append(appraisal)
-                availability_result = check_availability_details(full_domain) if use_availability else None
-                status = availability_result.label if availability_result else ""
-                status_map[full_domain] = status
-                col1, col2, col3, col4 = st.columns([3, 1.2, 2, 2])
-                with col1:
-                    color = "red" if availability_result and availability_result.status == LIKELY_REGISTERED else "gray"
-                    st.markdown(f"**:{color}[{full_domain}]**" if status else f"**{full_domain}**")
-                    st.caption(appraisal["explanation"])
-                    st.caption(f"Niche: {appraisal.get('niche', '')} · Profile: {get_profile(appraisal['profile']).label}")
-                    if appraisal.get("is_transformed"):
-                        delta = appraisal.get("improvement_delta", 0)
-                        delta_label = f"{delta:+d}" if isinstance(delta, int) else str(delta)
-                        st.caption(
-                            f"Method: {str(appraisal.get('method', '')).title()} · "
-                            f"From: {appraisal.get('source_domain', appraisal.get('source_name', ''))} · "
-                            f"Delta: {delta_label}"
-                        )
-                    else:
-                        st.caption(f"Method: {str(appraisal.get('method', '')).title()}")
-                    if availability_result:
-                        st.caption(f"Availability: {availability_result.label} · {availability_result.detail}")
-                    if appraisal["warnings"]:
-                        st.caption("Warnings: " + " · ".join(appraisal["warnings"][:2]))
-                with col2:
-                    st.caption(f"Grade {appraisal['grade']}")
-                    st.caption(f"⭐ {appraisal['final_score']}/100")
-                with col3:
-                    st.caption(appraisal["value"])
-                    st.caption(status or appraisal["tier"])
-                with col4:
-                    c1, c2, c3 = st.columns(3)
-                    with c1:
-                        if st.button("Quick Link", key=f"buy_{row_key}", help="Quick Buy Link: open a registrar search page for this exact domain"):
-                            open_namecheap_purchase(full_domain)
-                    with c2:
-                        if st.button("➕", key=f"add_{row_key}", help="Add to Portfolio"):
-                            inserted = add_to_portfolio(
-                                full_domain,
-                                appraisal["name"],
-                                appraisal["tld"],
-                                appraisal.get("niche", ""),
-                                f"{appraisal['grade']} · {appraisal['tier']}",
-                                appraisal["value"],
-                                appraisal["final_score"],
-                                scoring_profile=get_profile(appraisal["profile"]).label,
-                                explanation=appraisal["explanation"],
-                                status=status or "Not checked",
+        visible_grade_groups = [
+            (grade, categories.get(grade, [])[:num_per_tier])
+            for grade in GRADE_ORDER
+            if categories.get(grade, [])[:num_per_tier]
+        ]
+        grade_tabs = st.tabs([f"{grade} ({len(items)})" for grade, items in visible_grade_groups])
+
+        for tab, (grade, items) in zip(grade_tabs, visible_grade_groups):
+            with tab:
+                for item_index, appraisal in enumerate(items):
+                    full_domain = appraisal["domain"]
+                    row_key = f"{grade}_{item_index}_{full_domain}"
+                    all_generated_full.append(full_domain)
+                    comparison_appraisals.append(appraisal)
+                    availability_result = check_availability_details(full_domain) if use_availability else None
+                    status = availability_result.label if availability_result else ""
+                    status_map[full_domain] = status
+
+                    with st.container(border=True):
+                        col1, col2, col3, col4 = st.columns([3.2, 1.1, 1.8, 2])
+                        with col1:
+                            color = "red" if availability_result and availability_result.status == LIKELY_REGISTERED else "gray"
+                            st.markdown(f"**:{color}[{full_domain}]**" if status else f"**{full_domain}**")
+                            st.caption(appraisal["explanation"])
+                            st.caption(
+                                f"Niche: {appraisal.get('niche', '')} · "
+                                f"Profile: {get_profile(appraisal['profile']).label} (auto)"
                             )
-                            if inserted:
-                                st.success(f"✅ {full_domain} تمت إضافته للـ Portfolio")
-                            else:
-                                st.info("الدومين موجود بالفعل")
-                    with c3:
-                        is_favorite = full_domain in [fav["domain"] for fav in st.session_state.favorites]
-                        if st.button("💖" if is_favorite else "🤍", key=f"fav_{row_key}"):
-                            if not is_favorite:
-                                st.session_state.favorites.append(
-                                    {
-                                        "domain": full_domain,
-                                        "grade": appraisal["grade"],
-                                        "score": appraisal["final_score"],
-                                        "value": appraisal["value"],
-                                        "profile": get_profile(appraisal["profile"]).label,
-                                        "niche": appraisal.get("niche", ""),
-                                        "explanation": appraisal["explanation"],
-                                    }
+                            if appraisal.get("is_transformed"):
+                                delta = appraisal.get("improvement_delta", 0)
+                                delta_label = f"{delta:+d}" if isinstance(delta, int) else str(delta)
+                                st.caption(
+                                    f"Method: {str(appraisal.get('method', '')).title()} · "
+                                    f"From: {appraisal.get('source_domain', appraisal.get('source_name', ''))} · "
+                                    f"Delta: {delta_label}"
                                 )
-                                st.toast(f"✅ تمت إضافة {full_domain} للمفضلة")
                             else:
-                                st.session_state.favorites = [
-                                    favorite for favorite in st.session_state.favorites if favorite["domain"] != full_domain
-                                ]
-                                st.toast(f"🗑️ تمت إزالة {full_domain} من المفضلة")
-                            st.rerun()
+                                st.caption(f"Method: {str(appraisal.get('method', '')).title()}")
+                            if availability_result:
+                                st.caption(f"Availability: {availability_result.label} · {availability_result.detail}")
+                            if appraisal["warnings"]:
+                                st.caption("Warnings: " + " · ".join(appraisal["warnings"][:2]))
+                        with col2:
+                            st.metric("Score", f"{appraisal['final_score']}/100", appraisal["grade"])
+                        with col3:
+                            st.caption("Legacy")
+                            st.write(appraisal["value"])
+                            st.caption(status or appraisal["tier"])
+                            st.caption(f"Backend: {_backend_value_label(appraisal.get('backend_valuation'))}")
+                        with col4:
+                            c1, c2, c3 = st.columns(3)
+                            with c1:
+                                if st.button(
+                                    "Quick Link",
+                                    key=f"buy_{row_key}",
+                                    help="Quick Buy Link: open a registrar search page for this exact domain",
+                                ):
+                                    open_namecheap_purchase(full_domain)
+                            with c2:
+                                if st.button("➕", key=f"add_{row_key}", help="Add to Portfolio"):
+                                    inserted = add_to_portfolio(
+                                        full_domain,
+                                        appraisal["name"],
+                                        appraisal["tld"],
+                                        appraisal.get("niche", ""),
+                                        f"{appraisal['grade']} · {appraisal['tier']}",
+                                        appraisal["value"],
+                                        appraisal["final_score"],
+                                        scoring_profile=get_profile(appraisal["profile"]).label,
+                                        explanation=appraisal["explanation"],
+                                        status=status or "Not checked",
+                                    )
+                                    if inserted:
+                                        st.success(f"✅ {full_domain} تمت إضافته للـ Portfolio")
+                                    else:
+                                        st.info("الدومين موجود بالفعل")
+                            with c3:
+                                is_favorite = full_domain in [fav["domain"] for fav in st.session_state.favorites]
+                                if st.button("💖" if is_favorite else "🤍", key=f"fav_{row_key}"):
+                                    if not is_favorite:
+                                        st.session_state.favorites.append(
+                                            {
+                                                "domain": full_domain,
+                                                "grade": appraisal["grade"],
+                                                "score": appraisal["final_score"],
+                                                "value": appraisal["value"],
+                                                "profile": get_profile(appraisal["profile"]).label,
+                                                "niche": appraisal.get("niche", ""),
+                                                "explanation": appraisal["explanation"],
+                                            }
+                                        )
+                                        st.toast(f"✅ تمت إضافة {full_domain} للمفضلة")
+                                    else:
+                                        st.session_state.favorites = [
+                                            favorite
+                                            for favorite in st.session_state.favorites
+                                            if favorite["domain"] != full_domain
+                                        ]
+                                        st.toast(f"🗑️ تمت إزالة {full_domain} من المفضلة")
+                                    st.rerun()
 
-                with st.expander(f"Why {full_domain}?", expanded=False):
-                    st.write(f"Niche: {appraisal.get('niche', '')}")
-                    st.write(f"Profile: {get_profile(appraisal['profile']).label}")
-                    st.write(f"Method: {str(appraisal.get('method', '')).title()}")
-                    if appraisal.get("is_transformed"):
-                        st.write(f"Source: {appraisal.get('source_domain', appraisal.get('source_name', ''))}")
-                        st.write(f"Improvement Delta: {appraisal.get('improvement_delta', 0):+d}")
-                    st.write(f"Flags: {', '.join(appraisal['flags']) if appraisal['flags'] else 'None'}")
-                    st.write(f"Warnings: {', '.join(appraisal['warnings']) if appraisal['warnings'] else 'None'}")
-                    st.json(appraisal["subscores"])
+                        with st.expander(f"Why {full_domain}?", expanded=False):
+                            st.write(f"Niche: {appraisal.get('niche', '')}")
+                            st.write(f"Profile: {get_profile(appraisal['profile']).label} (auto)")
+                            st.write(f"Legacy score: {appraisal['final_score']}/100")
+                            st.write(f"Backend valuation: {_backend_value_label(appraisal.get('backend_valuation'))}")
+                            st.write(f"Backend status: {_backend_status_label(appraisal.get('backend_valuation'))}")
+                            backend_reason_codes = (appraisal.get("backend_valuation") or {}).get("reason_codes", [])
+                            if backend_reason_codes:
+                                st.write(
+                                    "Backend reasons: "
+                                    + " · ".join(
+                                        str(reason.get("label") or reason.get("code"))
+                                        for reason in backend_reason_codes
+                                    )
+                                )
+                            st.write(f"Method: {str(appraisal.get('method', '')).title()}")
+                            if appraisal.get("is_transformed"):
+                                st.write(f"Source: {appraisal.get('source_domain', appraisal.get('source_name', ''))}")
+                                st.write(f"Improvement Delta: {appraisal.get('improvement_delta', 0):+d}")
+                            st.write(f"Flags: {', '.join(appraisal['flags']) if appraisal['flags'] else 'None'}")
+                            st.write(f"Warnings: {', '.join(appraisal['warnings']) if appraisal['warnings'] else 'None'}")
+                            st.json(appraisal["subscores"])
 
         if all_generated_full:
             st.session_state.last_results = all_generated_full
@@ -936,7 +983,6 @@ def main() -> None:
 
     (
         niches,
-        scoring_profiles,
         generation_styles,
         keywords,
         geo_context,
@@ -958,7 +1004,6 @@ def main() -> None:
     with tab1:
         render_generator_tab(
             niches,
-            scoring_profiles,
             generation_styles,
             keywords,
             geo_context,

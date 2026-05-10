@@ -118,6 +118,8 @@ def prepare_refined_shortlist_dataframe(refined_items: list[dict[str, object]]) 
                 "Buyer Angle": str(item.get("buyer_angle") or ""),
                 "Why Good": str(item.get("why_good") or ""),
                 "Risk Summary": str(item.get("risk_summary") or ""),
+                "Provenance": str(item.get("provenance") or ""),
+                "Input Ref": _format_input_ref(item.get("input_ref")),
                 "_verdict_rank": verdict_rank.get(str(item.get("verdict") or ""), -1),
                 "_priority_rank": priority_rank.get(str(item.get("priority") or ""), -1),
             }
@@ -147,6 +149,8 @@ def prepare_refined_themes_dataframe(refined_items: list[dict[str, object]]) -> 
                 "Domain Direction": str(item.get("domain_direction") or ""),
                 "Why Now": str(item.get("why_now") or ""),
                 "Risk Summary": str(item.get("risk_summary") or ""),
+                "Provenance": str(item.get("provenance") or ""),
+                "Input Ref": _format_input_ref(item.get("input_ref")),
                 "_action_rank": action_rank.get(str(item.get("action") or ""), -1),
             }
         )
@@ -175,6 +179,8 @@ def prepare_refined_keywords_dataframe(refined_items: list[dict[str, object]]) -
                 "Buyer Angle": str(item.get("buyer_angle") or ""),
                 "Why Good": str(item.get("why_good") or ""),
                 "Risk Summary": str(item.get("risk_summary") or ""),
+                "Provenance": str(item.get("provenance") or ""),
+                "Input Ref": _format_input_ref(item.get("input_ref")),
                 "_action_rank": action_rank.get(str(item.get("action") or ""), -1),
             }
         )
@@ -183,6 +189,17 @@ def prepare_refined_keywords_dataframe(refined_items: list[dict[str, object]]) -
         ascending=[False, False, False, False],
     )
     return refined_df.drop(columns=["_action_rank"])
+
+
+def _format_input_ref(input_ref: object) -> str:
+    if not isinstance(input_ref, dict):
+        return ""
+    ordered_keys = ("domain", "keyword", "theme", "niche", "source")
+    return " | ".join(
+        f"{key}={input_ref[key]}"
+        for key in ordered_keys
+        if input_ref.get(key)
+    )
 
 
 def _filter_domain_ideas_dataframe(domain_ideas_df: pd.DataFrame, bucket: str) -> pd.DataFrame:

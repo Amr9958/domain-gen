@@ -9,10 +9,11 @@ from typing import Iterable, Mapping, Sequence
 from scoring.explanations import build_explanation
 from scoring.hard_filters import apply_hard_filters
 from scoring.interfaces import DomainAppraisal
-from scoring.score_profiles import COMMON_GENERIC_TERMS, get_profile
+from scoring.score_profiles import COMMON_GENERIC_TERMS, get_profile, normalize_profile_key
 
 
 VOWELS = set("aeiouy")
+CONSONANTS = "bcdfghjklmnpqrstvwxz"
 BAD_CLUSTERS = {
     "qx", "zx", "xq", "jq", "qj", "vv", "jj", "wx", "yyz", "ptm", "dtk", "ghtz", "rphn",
 }
@@ -26,12 +27,15 @@ GEO_HINTS = {
 NATURAL_HEADS = GOOD_SUFFIXES | {"pay", "data", "stream", "health", "realty", "tools", "software", "homes"}
 
 NICHE_HINTS = {
-    "Tech & AI": {"ai", "data", "cloud", "stack", "prompt", "model", "code", "bot", "agent"},
-    "Finance & SaaS": {"pay", "fund", "vault", "wealth", "trade", "asset", "cash", "ledger"},
-    "E-commerce": {"shop", "store", "cart", "pay", "deal", "flow", "market"},
-    "Creative & Arts": {"studio", "pixel", "canvas", "design", "craft", "muse"},
-    "Health & Wellness": {"health", "care", "clinic", "well", "med", "fit"},
-    "Real Estate": {"home", "realty", "estate", "homes", "roof", "property"},
+    "Tech & SaaS": {"ai", "api", "data", "cloud", "stack", "prompt", "model", "code", "bot", "agent"},
+    "Finance & Fintech": {"pay", "fund", "vault", "wealth", "trade", "asset", "cash", "ledger"},
+    "E-commerce & Retail": {"shop", "store", "cart", "pay", "deal", "flow", "market", "retail"},
+    "Travel & Lifestyle": {"booking", "guide", "hotel", "stay", "tour", "travel", "trip"},
+    "Health & Medical": {"health", "care", "clinic", "well", "med", "fit", "patient"},
+    "Real Estate & Property": {"home", "realty", "estate", "homes", "roof", "property"},
+    "Education & Learning": {"academy", "class", "course", "learn", "school", "skill", "tutor"},
+    "Legal & Professional": {"case", "compliance", "contract", "counsel", "legal", "tax"},
+    "Crypto & Web3": {"chain", "crypto", "defi", "ledger", "token", "wallet", "web3"},
 }
 
 
@@ -107,10 +111,10 @@ def length_score(name: str) -> int:
 def pronounceability_score(name: str, tokens: Sequence[str]) -> int:
     """Estimate how easily the name can be spoken and remembered."""
     score = 12
-    consonant_runs = re.findall(r"[bcdfghjklmnpqrstvwxz]{4,}", name)
+    consonant_runs = re.findall(rf"[{CONSONANTS}]{{3,}}", name)
     vowel_ratio = sum(char in VOWELS for char in name) / max(len(name), 1)
 
-    score -= len(consonant_runs) * 3
+    score -= len(consonant_runs) * 4
     if vowel_ratio < 0.22 or vowel_ratio > 0.72:
         score -= 3
     if any(cluster in name for cluster in BAD_CLUSTERS):
@@ -122,6 +126,10 @@ def pronounceability_score(name: str, tokens: Sequence[str]) -> int:
     if len(tokens) >= 2 and any(left[-1] == right[0] and left[-1] not in VOWELS for left, right in zip(tokens, tokens[1:])):
         score -= 2
     if len(tokens) == 1 and 5 <= len(name) <= 9 and consonant_runs == []:
+        score += 1
+    if re.fullmatch(rf"(?:[{CONSONANTS}][aeiouy]){{2}}", name):
+        score += 2
+    if re.fullmatch(rf"[{CONSONANTS}][aeiouy][{CONSONANTS}]", name):
         score += 1
     return max(0, min(score, 12))
 
@@ -153,7 +161,7 @@ def word_order_score(tokens: Sequence[str], profile: str) -> int:
             score += 2
         elif last in GEO_HINTS:
             score -= 2
-    if profile == "seo_exact":
+    if profile == "seo_authority":
         if last in profile_config.exact_match_terms:
             score += 1
         if first in GOOD_SUFFIXES:
@@ -185,43 +193,60 @@ def brandability_score(name: str, tokens: Sequence[str], profile: str) -> int:
         score -= 3
 
     if tokens and tokens[-1] in GOOD_SUFFIXES:
-        score += 3
+        score += 1 if len(name) > 12 else 3
+    if name.endswith(tuple(VOWELS)):
+        score += 2
+    if re.search(rf"(?:[{CONSONANTS}]?[aeiouy][{CONSONANTS}]?){{2}}", name) and 4 <= len(name) <= 9:
+        score += 2
     if name.startswith(tuple(BAD_PREFIXES)):
         score -= 4
     if len(set(tokens)) != len(tokens):
         score -= 3
     if any(token in profile_config.favored_terms for token in tokens):
         score += 2
-    if profile in {"geo_local", "seo_exact"} and len(tokens) == 2:
+    if profile in {"geo_local", "seo_authority"} and len(tokens) == 2:
         score += 1
-    if profile == "seo_exact" and any(token in GOOD_SUFFIXES for token in tokens):
+    if profile == "seo_authority" and any(token in GOOD_SUFFIXES for token in tokens):
         score -= 2
 
     return max(0, min(score, 25))
 
 
-def market_fit_score(tokens: Sequence[str], niche: str, profile: str) -> int:
+def market_fit_score(tokens: Sequence[str], niche: str, profile: str, name: str = "", user_keywords: Sequence[str] | None = None) -> int:
     """Score alignment with the selected buyer intent profile."""
     profile_config = get_profile(profile)
     token_set = set(tokens)
     niche_terms = NICHE_HINTS.get(niche, set())
+    joined_name = name or "".join(tokens)
     score = 6
+
+    # Keyword match bonus
+    if user_keywords:
+        keyword_set = set(user_keywords)
+        if token_set & keyword_set or any(kw in joined_name for kw in user_keywords if len(kw) >= 4):
+            score += 3
 
     if token_set & niche_terms:
         score += 4
+    if any(term in joined_name for term in niche_terms if len(term) >= 3):
+        score += 2
+    other_niche_terms = set().union(*(terms for other_niche, terms in NICHE_HINTS.items() if other_niche != niche))
+    cross_niche_hits = {term for term in other_niche_terms if term in token_set or (len(term) >= 4 and term in joined_name)}
+    if cross_niche_hits and not (token_set & niche_terms):
+        score -= 3
+    elif len(cross_niche_hits) > len(token_set & niche_terms):
+        score -= 2
     if token_set & profile_config.favored_terms:
         score += 5
-    if profile == "ai_brand" and token_set & {"ai", "agent", "prompt", "model", "data", "bot"}:
-        score += 4
     if profile == "startup_brand" and len(tokens) in {1, 2}:
         score += 2
     if profile == "flip_fast" and len(tokens) <= 2 and len("".join(tokens)) <= 10:
         score += 3
     if profile == "geo_local" and (token_set & GEO_HINTS) and (token_set & profile_config.local_terms):
         score += 6
-    if profile == "seo_exact" and len(tokens) >= 2 and (token_set & profile_config.exact_match_terms):
+    if profile == "seo_authority" and len(tokens) >= 2 and (token_set & profile_config.exact_match_terms):
         score += 5
-    if profile == "seo_exact" and len(tokens) == 1:
+    if profile == "seo_authority" and len(tokens) == 1:
         score -= 3
     if profile == "geo_local" and not (token_set & GEO_HINTS):
         score -= 3
@@ -242,11 +267,9 @@ def extension_fit_score(domain: str, tld: str, profile: str, tokens: Sequence[st
     else:
         score = 2
 
-    if profile == "ai_brand" and tld == ".ai" and token_set & {"ai", "agent", "prompt", "model", "data", "bot"}:
-        score += 1
     if profile == "geo_local" and tld == ".com":
         score += 1
-    if profile == "seo_exact" and tld == ".com" and token_set & profile_config.exact_match_terms:
+    if profile == "seo_authority" and tld == ".com" and token_set & profile_config.exact_match_terms:
         score += 1
     if tld in profile_config.discouraged_tlds:
         score -= 1
@@ -271,7 +294,7 @@ def liquidity_score(name: str, tokens: Sequence[str], tld: str, profile: str) ->
         score += 1
     if set(tokens) & {"pay", "data", "cloud", "health", "fund", "trade", "care", "tools"}:
         score += 2
-    if profile in {"geo_local", "seo_exact"}:
+    if profile in {"geo_local", "seo_authority"}:
         score -= 1
 
     return max(0, min(score, 10))
@@ -340,16 +363,12 @@ def collect_flags(tokens: Sequence[str], profile: str, subscores: Mapping[str, i
         flags.append("strong_liquidity")
     if len("".join(tokens)) <= 9:
         flags.append("compact_length")
-    if profile == "ai_brand" and token_set & {"ai", "agent", "prompt", "model", "data", "bot"}:
-        flags.append("strong_ai_fit")
     if profile == "startup_brand" and subscores["market_fit"] >= 14:
         flags.append("strong_startup_fit")
     if profile == "geo_local" and token_set & GEO_HINTS:
         flags.append("strong_local_fit")
-    if profile == "seo_exact" and token_set & {"tools", "software", "repair", "clinic", "legal", "tax"}:
+    if profile == "seo_authority" and token_set & {"tools", "software", "repair", "clinic", "legal", "tax"}:
         flags.append("strong_exact_match_fit")
-    if tld == ".ai" and profile == "ai_brand":
-        flags.append("strong_ai_fit")
 
     return list(dict.fromkeys(flags))
 
@@ -359,11 +378,18 @@ def evaluate_domain(
     profile: str = "startup_brand",
     niche: str = "",
     word_banks: Mapping[str, Sequence[str]] | None = None,
+    user_keywords: Sequence[str] | None = None,
 ) -> DomainAppraisal:
     """Evaluate a full domain using the modular resale scoring engine."""
+    profile = normalize_profile_key(profile)
     name, tld = split_domain(domain)
     tokens = tokenize_name(name, word_banks, profile)
-    hard_filter = apply_hard_filters(domain, name, tld, tokens, profile)
+    allowed_spam_terms = {
+        re.sub(r"[^a-z0-9]", "", keyword.lower())
+        for keyword in (user_keywords or [])
+        if keyword
+    } | NICHE_HINTS.get(niche, set())
+    hard_filter = apply_hard_filters(domain, name, tld, tokens, profile, allowed_spam_terms=allowed_spam_terms)
 
     if hard_filter.reject:
         subscores = {
@@ -396,7 +422,7 @@ def evaluate_domain(
     subscores = {
         "linguistic_quality": linguistic_quality_score(name, tokens, profile),
         "brandability": brandability_score(name, tokens, profile),
-        "market_fit": market_fit_score(tokens, niche, profile),
+        "market_fit": market_fit_score(tokens, niche, profile, name, user_keywords),
         "extension_fit": extension_fit_score(domain, tld, profile, tokens),
         "liquidity": liquidity_score(name, tokens, tld, profile),
         "bonus_penalty": bonus_penalty_score(name, tokens, hard_filter.penalty),
@@ -468,6 +494,7 @@ def evaluate_domains(
     profile: str = "startup_brand",
     niche: str = "",
     word_banks: Mapping[str, Sequence[str]] | None = None,
+    user_keywords: Sequence[str] | None = None,
 ) -> list[DomainAppraisal]:
     """Evaluate a list of full domains."""
-    return [evaluate_domain(domain, profile=profile, niche=niche, word_banks=word_banks) for domain in domains]
+    return [evaluate_domain(domain, profile=profile, niche=niche, word_banks=word_banks, user_keywords=user_keywords) for domain in domains]

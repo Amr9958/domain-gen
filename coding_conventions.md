@@ -70,7 +70,7 @@ Current repository modules may remain in place until a migration is approved. Wh
 - Use explicit enums for statuses, tiers, confidence, and refusal codes.
 
 ## Scraping and Source Access
-- Respect approved source access decisions in `requirements.md`.
+- Respect approved source access decisions in `TODO.md` and `docs/PROJECT_OVERVIEW.md`.
 - Do not add scraping bypasses, CAPTCHA workarounds, hidden browser automation, or login automation without explicit human approval.
 - Rate limits, retry counts, and user agents must be configurable.
 - Store raw payloads before normalization.
@@ -112,7 +112,7 @@ Current repository modules may remain in place until a migration is approved. Wh
 - Keep source-specific rate limits and feature flags configurable.
 - Do not hardcode production credentials, cookies, API keys, or personal data.
 - Provide safe defaults for local development.
-- Document required manual setup in `MANUAL_SETUP.md` or a dedicated runbook.
+- Document required manual setup in `docs/MANUAL_SETUP.md`.
 
 ## Database Change Conventions
 - Schema changes must follow `db_schema.md`.

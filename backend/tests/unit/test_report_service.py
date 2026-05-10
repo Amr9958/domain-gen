@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import datetime, timezone
 from decimal import Decimal
 from uuid import uuid4
@@ -58,6 +59,65 @@ def test_report_service_generates_and_persists_typed_report() -> None:
     assert fake_repository.created_kwargs["status"] == "generated"
     assert record.report_json.final_verdict.pricing_posture == "bin"
     assert record.report_json.validated_ai_explanations[0].explanation_type == "appraisal_summary"
+
+
+def test_compose_appraisal_report_surfaces_refused_valuation() -> None:
+    report_input = _build_report_input()
+    refused_input = replace(
+        report_input,
+        classification=None,
+        valuation=replace(
+            report_input.valuation,
+            status="refused",
+            refusal_code="missing_classification",
+            refusal_reason="A current classification result is required before pricing.",
+            estimated_value_min=None,
+            estimated_value_max=None,
+            estimated_value_point=None,
+            value_tier="refusal",
+            confidence_level="low",
+            reason_codes=[],
+        ),
+    )
+
+    report = compose_appraisal_report(refused_input)
+
+    assert report.valuation_status == "refused"
+    assert report.recommended_listing_price is None
+    assert report.final_verdict.status == "refused"
+    assert report.final_verdict.pricing_posture == "do_not_list"
+    assert report.final_verdict.refusal_code == "missing_classification"
+    assert report.final_verdict.refusal_reason == "A current classification result is required before pricing."
+
+
+def test_compose_appraisal_report_filters_unvalidated_ai_explanations() -> None:
+    report_input = _build_report_input()
+    pending_explanation = ReportAIExplanationInput(
+        id=uuid4(),
+        explanation_type="appraisal_summary",
+        model_name="approved-model",
+        prompt_version="appraisal-summary-v1",
+        text="This pending explanation must not enter the report.",
+        validation_status="pending",
+    )
+    blank_explanation = ReportAIExplanationInput(
+        id=uuid4(),
+        explanation_type="appraisal_summary",
+        model_name="approved-model",
+        prompt_version="appraisal-summary-v1",
+        text=" ",
+        validation_status="validated",
+    )
+    filtered_input = replace(
+        report_input,
+        validated_ai_explanations=[*report_input.validated_ai_explanations, pending_explanation, blank_explanation],
+    )
+
+    report = compose_appraisal_report(filtered_input)
+
+    assert len(report.validated_ai_explanations) == 1
+    assert report.validated_ai_explanations[0].validation_status == "validated"
+    assert report.validated_ai_explanations[0].text == "AtlasAI.com has solid brandable structure and moderate end-user upside."
 
 
 def test_report_service_requires_organization_scope_for_reads() -> None:

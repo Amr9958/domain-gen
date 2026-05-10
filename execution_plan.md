@@ -7,12 +7,12 @@ This plan breaks the domain intelligence SaaS into safe, reviewable implementati
 Goal: Establish shared contracts and review rules.
 
 Deliverables:
-- `requirements.md`
+- `docs/PROJECT_OVERVIEW.md`
 - `architecture.md`
 - `db_schema.md`
 - `api_contracts.md`
 - `coding_conventions.md`
-- `review_protocol.md`
+- `docs/REVIEW_PROTOCOL.md`
 - `execution_plan.md`
 
 Acceptance criteria:
@@ -230,4 +230,4 @@ A phase or task is done when:
 - It has tests or a documented verification gap.
 - It preserves traceability from user-facing output to stored evidence.
 - It records manual decisions instead of assuming them.
-- It is reviewed using `review_protocol.md`.
+- It is reviewed using `docs/REVIEW_PROTOCOL.md`.

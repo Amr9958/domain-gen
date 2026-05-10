@@ -67,6 +67,8 @@ class RemoveWatchlistItemCommand:
 
     watchlist_id: UUID
     watchlist_item_id: UUID
+    organization_id: UUID
+    actor_user_id: UUID
 
 
 class WatchlistRepositoryProtocol(Protocol):

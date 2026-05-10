@@ -24,6 +24,11 @@ from domain_intel.marketplaces.schemas import (
     RawAuctionItemObservation,
     stable_payload_hash,
 )
+from domain_intel.marketplaces.dynadot.api import (
+    DynadotAuctionApiClient,
+    DynadotAuctionApiConfig,
+    UnavailableDynadotAuctionApiClient,
+)
 from domain_intel.marketplaces.dynadot.parser import PARSER_VERSION, SOURCE_NAME, parse_dynadot_listing_page
 
 
@@ -42,6 +47,9 @@ class DynadotAuctionAdapterConfig:
     min_delay_between_requests_seconds: float = 1.5
     max_pages_per_run: int = 10
     respect_robots_txt: bool = True
+    api: DynadotAuctionApiConfig = field(default_factory=DynadotAuctionApiConfig)
+    fixture_fetching_enabled: bool = False
+    production_scraping_fallback_enabled: bool = False
     allowed_hosts: tuple[str, ...] = ("www.dynadot.com", "dynadot.com")
     retry_policy: RetryPolicy = field(default_factory=RetryPolicy)
 
@@ -60,8 +68,10 @@ class DynadotAuctionAdapter:
         run_logger: ScrapeRunLogger | None = None,
         dedup_store: DeduplicationStore | None = None,
         config: DynadotAuctionAdapterConfig | None = None,
+        api_client: DynadotAuctionApiClient | None = None,
     ) -> None:
         self.config = config or DynadotAuctionAdapterConfig()
+        self._uses_default_fetcher = fetcher is None
         self.fetcher = fetcher or SafeHttpPageFetcher(
             SafeHttpConfig(
                 user_agent=self.config.user_agent,
@@ -74,6 +84,7 @@ class DynadotAuctionAdapter:
         )
         self.run_logger = run_logger or NoopScrapeRunLogger()
         self.dedup_store = dedup_store or InMemoryDeduplicationStore()
+        self.api_client = api_client or UnavailableDynadotAuctionApiClient()
 
     def fetch_auction_items(self, request: FetchAuctionItemsRequest) -> FetchAuctionItemsResponse:
         """Fetch one Dynadot listing page and return raw observations."""
@@ -161,7 +172,25 @@ class DynadotAuctionAdapter:
             return FetchAuctionItemsResponse(items=[], errors=[error])
 
         captured_at = _utc_now()
+        if self.config.api.enabled:
+            return self._fetch_api_page(request, metrics=metrics, captured_at=captured_at)
+
         url = self._build_page_url(request.page_cursor, limit=request.limit)
+        fixture_fetching_allowed = self.config.fixture_fetching_enabled and not self._uses_default_fetcher
+        if not self.config.production_scraping_fallback_enabled and not fixture_fetching_allowed:
+            error = ModuleError(
+                code="source_not_approved",
+                message="Dynadot production scraping fallback is disabled; use the approved API-first path.",
+                details={
+                    "marketplace_code": marketplace_code,
+                    "url": url,
+                    "fixture_fetching_enabled": self.config.fixture_fetching_enabled,
+                    "production_scraping_fallback_enabled": self.config.production_scraping_fallback_enabled,
+                },
+            )
+            metrics.errors += 1
+            self._log_error(request, error, occurred_at=captured_at)
+            return FetchAuctionItemsResponse(items=[], errors=[error])
         metrics.pages_attempted += 1
         self.run_logger.page_started(
             ingest_run_id=request.ingest_run_id,
@@ -250,6 +279,21 @@ class DynadotAuctionAdapter:
             completed_at=_utc_now(),
         )
         return FetchAuctionItemsResponse(items=items, next_page_cursor=parsed_page.next_page_cursor, errors=[])
+
+    def _fetch_api_page(
+        self,
+        request: FetchAuctionItemsRequest,
+        *,
+        metrics: ScrapeRunMetrics,
+        captured_at: datetime,
+    ) -> FetchAuctionItemsResponse:
+        response = self.api_client.fetch_auction_items(request, config=self.config.api)
+        metrics.items_seen += len(response.items)
+        metrics.items_emitted += len(response.items)
+        metrics.errors += len(response.errors)
+        for error in response.errors:
+            self._log_error(request, error, occurred_at=captured_at)
+        return response
 
     def _build_page_url(self, page_cursor: str | None, *, limit: int) -> str:
         if page_cursor:

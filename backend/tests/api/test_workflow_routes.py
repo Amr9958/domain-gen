@@ -15,6 +15,7 @@ from fastapi.testclient import TestClient
 
 from domain_intel.api.dependencies import (
     get_alert_service,
+    get_generated_domain_valuation_service,
     get_opportunity_service,
     get_report_service,
     get_saved_search_service,
@@ -34,6 +35,7 @@ from domain_intel.contracts.appraisal import (
 )
 from domain_intel.main import create_app
 from domain_intel.services.alert_service import AlertRuleRecord
+from domain_intel.services.generated_domain_service import GeneratedDomainValuationRecord
 from domain_intel.services.opportunity_service import (
     UndervaluedAuctionPage,
     UndervaluedAuctionRecord,
@@ -120,6 +122,14 @@ def test_watchlist_alert_and_saved_search_routes() -> None:
             "notes": "Track before close.",
         },
     )
+    added_item_id = add_item.json()["watchlist_item"]["id"]
+    remove_item = client.delete(
+        f"/v1/watchlists/{fake_watchlist_service.watchlist.id}/items/{added_item_id}",
+        params={
+            "organization_id": str(fake_watchlist_service.watchlist.organization_id),
+            "actor_user_id": str(fake_watchlist_service.watchlist.owner_user_id),
+        },
+    )
     alert_rule = client.post(
         "/v1/alert-rules",
         json={
@@ -146,6 +156,10 @@ def test_watchlist_alert_and_saved_search_routes() -> None:
     assert create_watchlist.status_code == 200
     assert add_item.status_code == 200
     assert add_item.json()["created"] is True
+    assert remove_item.status_code == 200
+    assert remove_item.json()["removed"] is True
+    assert fake_watchlist_service.remove_command.organization_id == fake_watchlist_service.watchlist.organization_id
+    assert fake_watchlist_service.remove_command.actor_user_id == fake_watchlist_service.watchlist.owner_user_id
     assert alert_rule.status_code == 200
     assert alert_rule.json()["rule_type"] == "price_below_threshold"
     assert saved_search.status_code == 200
@@ -207,6 +221,144 @@ def test_undervalued_auctions_route_returns_dashboard_shape() -> None:
     assert payload["items"][0]["status"] == "candidate"
     assert fake_service.query.policy.max_risk_score == Decimal("0.25")
     assert fake_service.query.source == "dynadot"
+
+
+def test_generated_domain_valuation_route_triggers_service() -> None:
+    fake_service = FakeGeneratedDomainValuationService()
+    app = create_app()
+    app.dependency_overrides[get_generated_domain_valuation_service] = lambda: fake_service
+    client = TestClient(app)
+
+    response = client.post(
+        "/v1/generated-domains/valuation",
+        json={
+            "fullDomain": "atlasai.com",
+            "score": 78,
+            "grade": "A",
+            "scoringProfile": "startup_brand",
+            "valueBand": "$1k-$3k",
+            "sourceTheme": "ai agents",
+            "keyword": "agent",
+            "reviewBucket": "shortlist",
+            "recommendation": "shortlist",
+            "style": "brandable",
+            "niche": "Tech & SaaS",
+            "buyerType": "startup",
+            "riskNotes": [],
+        },
+    )
+
+    payload = response.json()
+    assert response.status_code == 200
+    assert fake_service.command.domain_name == "atlasai"
+    assert fake_service.command.extension == "com"
+    assert fake_service.command.value_estimate == "$1k-$3k"
+    assert payload["fqdn"] == "atlasai.com"
+    assert payload["status"] == "valued"
+    assert payload["reason_codes"] == ["clean_structure"]
+
+
+def test_generated_domain_valuation_route_surfaces_bad_domain() -> None:
+    fake_service = RejectingGeneratedDomainValuationService()
+    app = create_app()
+    app.dependency_overrides[get_generated_domain_valuation_service] = lambda: fake_service
+    client = TestClient(app)
+
+    response = client.post(
+        "/v1/generated-domains/valuation",
+        json={
+            "fullDomain": "bad.com",
+            "score": 78,
+        },
+    )
+
+    assert response.status_code == 400
+    assert "valid generated domain" in response.json()["detail"]
+
+
+def test_add_watchlist_item_surfaces_validation_error() -> None:
+    app = create_app()
+    app.dependency_overrides[get_watchlist_service] = lambda: RejectingAddItemWatchlistService()
+    client = TestClient(app)
+
+    response = client.post(
+        f"/v1/watchlists/{uuid4()}/items",
+        json={
+            "created_by_user_id": str(uuid4()),
+            "notes": "Missing domain and auction IDs.",
+        },
+    )
+
+    assert response.status_code == 400
+    assert "domain_id or auction_id" in response.json()["detail"]
+
+
+def test_remove_watchlist_item_returns_404_when_missing() -> None:
+    fake_service = MissingItemWatchlistService()
+    app = create_app()
+    app.dependency_overrides[get_watchlist_service] = lambda: fake_service
+    client = TestClient(app)
+
+    response = client.delete(
+        f"/v1/watchlists/{uuid4()}/items/{uuid4()}",
+        params={
+            "organization_id": str(uuid4()),
+            "actor_user_id": str(uuid4()),
+        },
+    )
+
+    assert response.status_code == 404
+    assert "was not found" in response.json()["detail"]
+
+
+def test_undervalued_auctions_route_maps_all_query_options() -> None:
+    fake_service = FakeOpportunityService()
+    app = create_app()
+    app.dependency_overrides[get_opportunity_service] = lambda: fake_service
+    client = TestClient(app)
+
+    response = client.get(
+        "/v1/opportunities/undervalued-auctions",
+        params={
+            "source": "dropcatch",
+            "tld": "io",
+            "min_confidence_level": "high",
+            "max_risk_score": "0.10",
+            "max_bid_to_wholesale_ratio": "0.80",
+            "max_bid_to_retail_ratio": "0.20",
+            "include_rejected": "true",
+            "limit": "25",
+            "offset": "5",
+        },
+    )
+
+    assert response.status_code == 200
+    assert fake_service.query.source == "dropcatch"
+    assert fake_service.query.tld == "io"
+    assert fake_service.query.limit == 25
+    assert fake_service.query.offset == 5
+    assert fake_service.query.include_rejected is True
+    assert fake_service.query.policy.min_confidence_level == "high"
+    assert fake_service.query.policy.max_risk_score == Decimal("0.10")
+    assert fake_service.query.policy.max_bid_to_wholesale_ratio == Decimal("0.80")
+    assert fake_service.query.policy.max_bid_to_retail_ratio == Decimal("0.20")
+
+
+def test_undervalued_auctions_route_rejects_invalid_query_values() -> None:
+    app = create_app()
+    app.dependency_overrides[get_opportunity_service] = lambda: FakeOpportunityService()
+    client = TestClient(app)
+
+    response = client.get(
+        "/v1/opportunities/undervalued-auctions",
+        params={
+            "min_confidence_level": "certain",
+            "max_risk_score": "1.50",
+            "limit": "0",
+        },
+    )
+
+    assert response.status_code == 422
 
 
 class FakeReportService:
@@ -274,6 +426,7 @@ class FakeReportService:
 class FakeWatchlistService:
     def __init__(self) -> None:
         now = datetime(2026, 4, 23, 12, 0, tzinfo=timezone.utc)
+        self.remove_command = None
         self.watchlist = WatchlistRecord(
             id=uuid4(),
             organization_id=uuid4(),
@@ -305,7 +458,18 @@ class FakeWatchlistService:
         )
 
     def remove_item(self, command):
+        self.remove_command = command
         return True
+
+
+class RejectingAddItemWatchlistService:
+    def add_item(self, command):
+        raise ValueError("Either domain_id or auction_id is required for a watchlist item.")
+
+
+class MissingItemWatchlistService:
+    def remove_item(self, command):
+        return False
 
 
 class FakeAlertService:
@@ -387,3 +551,32 @@ class FakeOpportunityService:
             reasons=["Current bid sits below configured wholesale and retail thresholds."],
         )
         return UndervaluedAuctionPage(items=[item], total=1, limit=query.limit, offset=query.offset)
+
+
+class FakeGeneratedDomainValuationService:
+    def __init__(self) -> None:
+        self.command = None
+
+    def value_generated_domain(self, command):
+        self.command = command
+        return GeneratedDomainValuationRecord(
+            domain_id=uuid4(),
+            fqdn="atlasai.com",
+            classification_result_id=uuid4(),
+            valuation_run_id=uuid4(),
+            status="valued",
+            refusal_code=None,
+            refusal_reason=None,
+            estimated_value_min=Decimal("1000"),
+            estimated_value_max=Decimal("2500"),
+            estimated_value_point=Decimal("1750"),
+            currency="USD",
+            value_tier="meaningful",
+            confidence_level="medium",
+            reason_codes=["clean_structure"],
+        )
+
+
+class RejectingGeneratedDomainValuationService:
+    def value_generated_domain(self, command):
+        raise ValueError("A valid generated domain with extension is required.")

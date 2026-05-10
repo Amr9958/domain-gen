@@ -16,9 +16,14 @@ if str(BACKEND_SRC) not in sys.path:
 
 from domain_intel.core.enums import MarketplaceCode
 from domain_intel.marketplaces.base import PageFetchError
-from domain_intel.marketplaces.dynadot import DynadotAuctionAdapter, parse_dynadot_listing_page
+from domain_intel.marketplaces.dynadot import (
+    DynadotAuctionAdapter,
+    DynadotAuctionAdapterConfig,
+    DynadotAuctionApiConfig,
+    parse_dynadot_listing_page,
+)
 from domain_intel.marketplaces.run_logging import InMemoryScrapeRunLogger
-from domain_intel.marketplaces.schemas import FetchedPage, FetchAuctionItemsRequest
+from domain_intel.marketplaces.schemas import FetchedPage, FetchAuctionItemsRequest, FetchAuctionItemsResponse
 from domain_intel.normalization import DynadotAuctionNormalizer, NormalizeRawItemRequest
 
 
@@ -50,6 +55,37 @@ class _FakeFetcher:
         if page is None:
             raise PageFetchError(f"No fixture registered for {url}", code="fixture_missing")
         return FetchedPage(url=url, status_code=200, text=page, headers={})
+
+
+class _FailingFetcher:
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+
+    def fetch(
+        self,
+        url: str,
+        *,
+        headers: Mapping[str, str] | None = None,
+        timeout_seconds: float | None = None,
+    ) -> FetchedPage:
+        _ = headers, timeout_seconds
+        self.calls.append(url)
+        raise AssertionError("Dynadot API mode must not call the scraping fetcher")
+
+
+class _FakeDynadotApiClient:
+    def __init__(self, response: FetchAuctionItemsResponse) -> None:
+        self.response = response
+        self.calls: list[tuple[FetchAuctionItemsRequest, DynadotAuctionApiConfig]] = []
+
+    def fetch_auction_items(
+        self,
+        request: FetchAuctionItemsRequest,
+        *,
+        config: DynadotAuctionApiConfig,
+    ) -> FetchAuctionItemsResponse:
+        self.calls.append((request, config))
+        return self.response
 
 
 class DynadotParserTests(unittest.TestCase):
@@ -92,6 +128,88 @@ class DynadotParserTests(unittest.TestCase):
 
 
 class DynadotAdapterTests(unittest.TestCase):
+    def test_default_production_scraping_fallback_is_disabled(self) -> None:
+        logger = InMemoryScrapeRunLogger()
+        adapter = DynadotAuctionAdapter(run_logger=logger)
+
+        response = adapter.fetch_auction_items(
+            FetchAuctionItemsRequest(
+                marketplace_code=MarketplaceCode.DYNADOT,
+                ingest_run_id="approval-gate",
+                limit=100,
+            )
+        )
+
+        self.assertEqual(response.items, [])
+        self.assertEqual(response.errors[0].code, "source_not_approved")
+        self.assertIn("API-first", response.errors[0].message)
+        self.assertEqual(response.errors[0].details["production_scraping_fallback_enabled"], False)
+        self.assertEqual(logger.metrics.pages_attempted, 0)
+
+    def test_injected_fetcher_does_not_bypass_disabled_scraping_fallback(self) -> None:
+        fetcher = _FailingFetcher()
+        adapter = DynadotAuctionAdapter(fetcher=fetcher)
+
+        response = adapter.fetch_auction_items(
+            FetchAuctionItemsRequest(
+                marketplace_code=MarketplaceCode.DYNADOT,
+                ingest_run_id="injected-fetcher-gate",
+                limit=100,
+            )
+        )
+
+        self.assertEqual(response.items, [])
+        self.assertEqual(response.errors[0].code, "source_not_approved")
+        self.assertEqual(fetcher.calls, [])
+
+    def test_api_enabled_without_client_returns_local_unavailable_error(self) -> None:
+        logger = InMemoryScrapeRunLogger()
+        adapter = DynadotAuctionAdapter(
+            config=DynadotAuctionAdapterConfig(api=DynadotAuctionApiConfig(enabled=True)),
+            run_logger=logger,
+        )
+
+        response = adapter.fetch_auction_items(
+            FetchAuctionItemsRequest(
+                marketplace_code=MarketplaceCode.DYNADOT,
+                ingest_run_id="api-skeleton-missing-client",
+                limit=100,
+            )
+        )
+
+        self.assertEqual(response.items, [])
+        self.assertEqual(response.errors[0].code, "api_client_unavailable")
+        self.assertEqual(response.errors[0].details["api_enabled"], True)
+        self.assertEqual(response.errors[0].details["api_base_url_configured"], False)
+        self.assertEqual(response.errors[0].details["credential_env_var"], "DYNADOT_API_KEY")
+        self.assertEqual(logger.metrics.pages_attempted, 0)
+
+    def test_api_enabled_uses_api_client_without_scraping_fetcher(self) -> None:
+        api_response = FetchAuctionItemsResponse(items=[], next_page_cursor="api-page-2", errors=[])
+        api_client = _FakeDynadotApiClient(api_response)
+        fetcher = _FailingFetcher()
+        adapter = DynadotAuctionAdapter(
+            config=DynadotAuctionAdapterConfig(
+                api=DynadotAuctionApiConfig(enabled=True, base_url="https://api.example.invalid/dynadot")
+            ),
+            api_client=api_client,
+            fetcher=fetcher,
+        )
+        request = FetchAuctionItemsRequest(
+            marketplace_code=MarketplaceCode.DYNADOT,
+            ingest_run_id="api-skeleton-client",
+            page_cursor="api-page-1",
+            limit=100,
+        )
+
+        response = adapter.fetch_auction_items(request)
+
+        self.assertEqual(response, api_response)
+        self.assertEqual(fetcher.calls, [])
+        self.assertEqual(len(api_client.calls), 1)
+        self.assertIs(api_client.calls[0][0], request)
+        self.assertTrue(api_client.calls[0][1].enabled)
+
     def test_fetch_all_handles_pagination_hashes_and_duplicate_listing_hooks(self) -> None:
         fetcher = _FakeFetcher(
             {
@@ -100,7 +218,11 @@ class DynadotAdapterTests(unittest.TestCase):
             }
         )
         logger = InMemoryScrapeRunLogger()
-        adapter = DynadotAuctionAdapter(fetcher=fetcher, run_logger=logger)
+        adapter = DynadotAuctionAdapter(
+            fetcher=fetcher,
+            run_logger=logger,
+            config=DynadotAuctionAdapterConfig(fixture_fetching_enabled=True),
+        )
 
         response = adapter.fetch_all_auction_items(
             FetchAuctionItemsRequest(

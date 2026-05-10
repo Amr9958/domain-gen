@@ -57,6 +57,14 @@ EXACT_MATCH_TERMS = {
     "software", "tools", "cloud", "hosting", "repair", "cleaning", "clinic", "legal", "tax",
     "data", "analytics", "payments", "pay", "fund", "credit", "health", "realty", "homes",
 }
+AUTO_GEO_TERMS = {
+    "atlanta", "austin", "boston", "cairo", "chicago", "dallas", "dubai", "london",
+    "miami", "nyc", "riyadh", "texas", "toronto", "uae",
+}
+PROFILE_ALIASES = {
+    "seo_exact": "seo_authority",
+    "ai_brand": "startup_brand",
+}
 
 PROFILE_MAP: dict[str, ScoreProfile] = {
     "startup_brand": ScoreProfile(
@@ -73,21 +81,6 @@ PROFILE_MAP: dict[str, ScoreProfile] = {
         commercial_terms=COMMON_COMMERCIAL_TERMS,
         local_terms=LOCAL_SERVICE_TERMS,
         exact_match_terms=EXACT_MATCH_TERMS,
-    ),
-    "ai_brand": ScoreProfile(
-        key="ai_brand",
-        label="AI Brand",
-        description="AI-native brands for tooling, model infra, agents, and applied AI startups.",
-        preferred_tlds={".ai": 10, ".com": 9, ".io": 8, ".dev": 7, ".app": 7},
-        acceptable_tlds={".co": 6, ".net": 4, ".org": 4},
-        discouraged_tlds={".org"},
-        favored_terms={"ai", "agent", "prompt", "model", "data", "bot", "cloud", "stack", "forge", "labs"},
-        generic_terms=COMMON_GENERIC_TERMS | {"agent", "prompt", "model", "train", "vector", "token"},
-        head_terms=COMMON_HEAD_TERMS | {"agent", "model", "bot", "vector"},
-        modifier_terms=COMMON_MODIFIER_TERMS | {"prompt", "data", "auto", "smart", "agent", "model"},
-        commercial_terms=COMMON_COMMERCIAL_TERMS | {"ai", "agent"},
-        local_terms=LOCAL_SERVICE_TERMS,
-        exact_match_terms=EXACT_MATCH_TERMS | {"ai", "agents", "automation"},
     ),
     "flip_fast": ScoreProfile(
         key="flip_fast",
@@ -119,9 +112,9 @@ PROFILE_MAP: dict[str, ScoreProfile] = {
         local_terms=LOCAL_SERVICE_TERMS,
         exact_match_terms=EXACT_MATCH_TERMS | LOCAL_SERVICE_TERMS,
     ),
-    "seo_exact": ScoreProfile(
-        key="seo_exact",
-        label="SEO Exact",
+    "seo_authority": ScoreProfile(
+        key="seo_authority",
+        label="SEO Authority",
         description="Clear exact-match and commercial-intent combinations.",
         preferred_tlds={".com": 10, ".net": 7, ".org": 6, ".co": 6},
         acceptable_tlds={".ai": 4, ".io": 3, ".app": 4, ".dev": 3},
@@ -137,6 +130,33 @@ PROFILE_MAP: dict[str, ScoreProfile] = {
 }
 
 
+def auto_detect_profile(name: str, tld: str, tokens: list[str] | tuple[str, ...], niche: str = "") -> str:
+    """Choose a scoring profile from domain structure and niche context."""
+
+    clean_name = "".join(character for character in name.lower() if character.isalnum())
+    normalized_tld = tld.lower() if tld.startswith(".") else f".{tld.lower()}"
+    token_set = {token.lower() for token in tokens if token} | {
+        term for term in AUTO_GEO_TERMS | LOCAL_SERVICE_TERMS | EXACT_MATCH_TERMS if term in clean_name
+    }
+    niche_text = niche.lower()
+
+    if token_set & AUTO_GEO_TERMS and token_set & LOCAL_SERVICE_TERMS:
+        return "geo_local"
+    if normalized_tld in {".com", ".net"} and (
+        (token_set & EXACT_MATCH_TERMS and len(tokens) >= 2)
+        or any(term in niche_text for term in {"legal", "medical", "property"})
+    ):
+        return "seo_authority"
+    if normalized_tld == ".com" and len(tokens) <= 2 and len(clean_name) <= 8:
+        return "flip_fast"
+    return "startup_brand"
+
+
+def normalize_profile_key(profile: str) -> str:
+    """Map legacy profile keys to their current scoring profile."""
+    return PROFILE_ALIASES.get(profile, profile)
+
+
 def get_profile(profile: str) -> ScoreProfile:
     """Return a scoring profile configuration, defaulting to startup brand."""
-    return PROFILE_MAP.get(profile, PROFILE_MAP["startup_brand"])
+    return PROFILE_MAP.get(normalize_profile_key(profile), PROFILE_MAP["startup_brand"])

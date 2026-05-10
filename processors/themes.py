@@ -31,6 +31,20 @@ ENTITY_STOP_WORDS = THEME_STOP_WORDS | {
     "tooling", "toolkit", "workflow",
 }
 NORMALIZED_ENTITY_STOP_WORDS = {re.sub(r"[^a-z0-9]", "", term) for term in ENTITY_STOP_WORDS}
+TERM_ALIASES = {
+    "agentic": "agent",
+    "agents": "agent",
+    "assistants": "assistant",
+    "autonomous": "automation",
+    "llms": "llm",
+    "models": "model",
+    "genai": "ai",
+    "generative": "ai",
+    "workflows": "workflow",
+    "guardrails": "guardrail",
+    "policies": "policy",
+    "payments": "payment",
+}
 
 
 @dataclass
@@ -49,8 +63,8 @@ def _normalize_term(term: str) -> str:
     if normalized.endswith("ies") and len(normalized) > 4:
         return normalized[:-3] + "y"
     if normalized.endswith("s") and len(normalized) > 4 and not normalized.endswith("ss"):
-        return normalized[:-1]
-    return normalized
+        normalized = normalized[:-1]
+    return TERM_ALIASES.get(normalized, normalized)
 
 
 def _iter_terms(text: str) -> list[str]:

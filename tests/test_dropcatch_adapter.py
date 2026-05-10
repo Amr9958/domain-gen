@@ -123,6 +123,24 @@ class DropCatchAdapterTests(unittest.TestCase):
         self.assertEqual(response.errors[0].code, "http_error")
         self.assertEqual(fetcher.calls, 1)
 
+    def test_production_fetching_is_disabled_until_source_approval(self) -> None:
+        page_url = "https://www.dropcatch.com/auctions"
+        adapter = DropCatchAuctionAdapter(
+            config=DropCatchAuctionAdapterConfig(default_listing_url=page_url),
+            fetcher=_FixtureFetcher({page_url: "<html></html>"}),
+        )
+
+        response = adapter.fetch_auction_items(
+            FetchAuctionItemsRequest(
+                marketplace_code=MarketplaceCode.DROPCATCH,
+                ingest_run_id="run-approval-gate",
+                limit=10,
+            )
+        )
+
+        self.assertEqual(response.items, [])
+        self.assertEqual(response.errors[0].code, "source_not_approved")
+
 
 if __name__ == "__main__":
     unittest.main()

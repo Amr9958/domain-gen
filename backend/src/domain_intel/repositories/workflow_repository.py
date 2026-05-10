@@ -7,9 +7,18 @@ from typing import Dict, List
 
 from sqlalchemy import select
 
-from domain_intel.db.models import AlertRule, OrganizationMember, Watchlist, WatchlistItem
+from domain_intel.db.models import AlertDelivery, AlertEvent, AlertRule, OrganizationMember, Watchlist, WatchlistItem
 from domain_intel.repositories.base import BaseRepository
-from domain_intel.services.alert_service import AlertRuleRecord, CreateAlertRuleCommand
+from domain_intel.services.alert_service import (
+    AlertDeliveryDispatchCandidate,
+    AlertDeliveryRecord,
+    AlertEventCandidate,
+    AlertEventMutationResult,
+    AlertEventRecord,
+    AlertRuleRecord,
+    CreateAlertRuleCommand,
+    RecordAlertDeliveryCommand,
+)
 from domain_intel.services.watchlist_service import (
     AddWatchlistItemCommand,
     CreateWatchlistCommand,
@@ -94,6 +103,13 @@ class WatchlistRepository(BaseRepository):
     def remove_item(self, command: RemoveWatchlistItemCommand) -> bool:
         """Delete a watchlist item when it belongs to the requested watchlist."""
 
+        watchlist = self.session.get(Watchlist, command.watchlist_id)
+        if watchlist is None or watchlist.deleted_at is not None:
+            return False
+        if watchlist.organization_id != command.organization_id:
+            raise PermissionError("organization_id does not match the watchlist organization.")
+        if not self._user_belongs_to_org(command.organization_id, command.actor_user_id):
+            raise PermissionError("actor_user_id is not allowed to modify this watchlist.")
         item = self.session.get(WatchlistItem, command.watchlist_item_id)
         if item is None or item.watchlist_id != command.watchlist_id:
             return False
@@ -159,6 +175,130 @@ class AlertRuleRepository(BaseRepository):
         self.session.add(rule)
         self.session.commit()
         self.session.refresh(rule)
+        return AlertRuleRecord(
+            id=rule.id,
+            organization_id=rule.organization_id,
+            watchlist_id=rule.watchlist_id,
+            rule_type=rule.rule_type,
+            is_enabled=rule.is_enabled,
+            threshold_json=dict(rule.threshold_json),
+            channel_config_json=dict(rule.channel_config_json),
+            created_at=rule.created_at,
+            updated_at=rule.updated_at,
+        )
+
+    def upsert_event(
+        self,
+        rule: AlertRuleRecord,
+        candidate: AlertEventCandidate,
+        evaluation_time,
+    ) -> AlertEventMutationResult:
+        """Persist an alert event once per rule/event key."""
+
+        event = self.session.scalar(
+            select(AlertEvent).where(
+                AlertEvent.alert_rule_id == rule.id,
+                AlertEvent.event_key == candidate.event_key,
+            )
+        )
+        created = event is None
+        if event is None:
+            event = AlertEvent(
+                alert_rule_id=rule.id,
+                domain_id=candidate.domain_id,
+                auction_id=candidate.auction_id,
+                event_type=candidate.event_type,
+                event_key=candidate.event_key,
+                severity=candidate.severity,
+                payload_json=candidate.payload_json,
+                created_at=evaluation_time,
+            )
+            self.session.add(event)
+            self.session.commit()
+            self.session.refresh(event)
+        return AlertEventMutationResult(event=self._event_to_record(event), created=created)
+
+    def upsert_delivery(self, command: RecordAlertDeliveryCommand) -> AlertDeliveryRecord:
+        """Create or update a delivery attempt for an event/channel pair."""
+
+        delivery = self.session.scalar(
+            select(AlertDelivery).where(
+                AlertDelivery.alert_event_id == command.alert_event_id,
+                AlertDelivery.channel == command.channel,
+            )
+        )
+        if delivery is None:
+            delivery = AlertDelivery(
+                alert_event_id=command.alert_event_id,
+                channel=command.channel,
+                status=command.status,
+                attempt_count=0,
+            )
+            self.session.add(delivery)
+        delivery.status = command.status
+        delivery.attempt_count = int(delivery.attempt_count or 0) + 1
+        delivery.last_attempt_at = command.attempted_at
+        delivery.delivered_at = command.attempted_at if command.status == "delivered" else None
+        delivery.error_code = command.error_code
+        delivery.error_summary = command.error_summary
+        self.session.commit()
+        self.session.refresh(delivery)
+        return self._delivery_to_record(delivery)
+
+    def list_delivery_candidates(self, limit: int = 100) -> list[AlertDeliveryDispatchCandidate]:
+        """Load alert events with enabled rules for delivery dispatch."""
+
+        rows = self.session.execute(
+            select(AlertEvent, AlertRule)
+            .join(AlertRule, AlertRule.id == AlertEvent.alert_rule_id)
+            .where(AlertRule.is_enabled.is_(True))
+            .order_by(AlertEvent.created_at.asc())
+            .limit(limit)
+        ).all()
+        candidates: list[AlertDeliveryDispatchCandidate] = []
+        for event, rule in rows:
+            deliveries = self.session.scalars(
+                select(AlertDelivery).where(AlertDelivery.alert_event_id == event.id)
+            ).all()
+            candidates.append(
+                AlertDeliveryDispatchCandidate(
+                    rule=self._rule_to_record(rule),
+                    event=self._event_to_record(event),
+                    deliveries_by_channel={
+                        delivery.channel: self._delivery_to_record(delivery)
+                        for delivery in deliveries
+                    },
+                )
+            )
+        return candidates
+
+    def _event_to_record(self, event: AlertEvent) -> AlertEventRecord:
+        return AlertEventRecord(
+            id=event.id,
+            alert_rule_id=event.alert_rule_id,
+            domain_id=event.domain_id,
+            auction_id=event.auction_id,
+            event_type=event.event_type,
+            event_key=event.event_key,
+            severity=event.severity,
+            payload_json=dict(event.payload_json),
+            created_at=event.created_at,
+        )
+
+    def _delivery_to_record(self, delivery: AlertDelivery) -> AlertDeliveryRecord:
+        return AlertDeliveryRecord(
+            id=delivery.id,
+            alert_event_id=delivery.alert_event_id,
+            channel=delivery.channel,
+            status=delivery.status,
+            attempt_count=delivery.attempt_count,
+            last_attempt_at=delivery.last_attempt_at,
+            delivered_at=delivery.delivered_at,
+            error_code=delivery.error_code,
+            error_summary=delivery.error_summary,
+        )
+
+    def _rule_to_record(self, rule: AlertRule) -> AlertRuleRecord:
         return AlertRuleRecord(
             id=rule.id,
             organization_id=rule.organization_id,

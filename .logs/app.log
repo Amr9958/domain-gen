@@ -235,3 +235,289 @@
 2026-04-23 21:02:31,152 | INFO | trend_domain.marketplaces.dropcatch.adapter | Fetched 1 DropCatch raw auction items for ingest_run_id=run-2.
 2026-04-23 21:02:31,154 | INFO | trend_domain.marketplaces.dropcatch.adapter | Fetched 2 DropCatch raw auction items for ingest_run_id=run-1.
 2026-04-23 21:02:31,155 | INFO | trend_domain.marketplaces.dropcatch.adapter | Fetched 1 DropCatch raw auction items for ingest_run_id=run-3.
+2026-04-27 21:46:35,822 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 21:46:35,828 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 21:46:54,153 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 21:46:54,160 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 21:46:55,100 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 21:46:55,101 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 21:46:55,943 | INFO | httpx | HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 401 Unauthorized"
+2026-04-27 21:46:56,037 | INFO | httpx | HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 401 Unauthorized"
+2026-04-27 21:47:02,437 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 21:47:02,438 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 21:58:07,646 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 21:58:07,650 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 21:58:10,107 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 21:58:10,107 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 21:58:11,792 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 21:58:11,792 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 21:58:17,531 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 21:58:17,532 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 21:58:26,349 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 21:58:26,350 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 21:58:28,375 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 21:58:28,376 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 21:58:29,086 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 21:58:29,086 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 21:58:30,583 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 21:58:30,583 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 21:58:32,179 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 21:58:32,180 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 21:58:32,255 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 21:58:32,255 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 21:58:32,568 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 21:58:32,569 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 21:59:05,713 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 21:59:05,714 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 21:59:06,337 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 21:59:06,338 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 21:59:06,748 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 21:59:06,748 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 21:59:09,754 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 21:59:09,755 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 21:59:09,924 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 21:59:09,925 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 21:59:10,225 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 21:59:10,226 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 21:59:12,858 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 21:59:12,860 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 21:59:13,087 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 21:59:13,087 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 21:59:13,413 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 21:59:13,413 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 21:59:40,278 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 21:59:40,280 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 21:59:40,965 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 21:59:40,965 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 21:59:41,074 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 21:59:41,076 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 21:59:41,413 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 21:59:41,415 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 22:00:31,935 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 22:00:31,938 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 22:00:32,473 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 22:00:32,476 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 22:00:32,838 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 22:00:32,839 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 22:00:42,842 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 22:00:42,843 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 22:00:44,115 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 22:00:44,115 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 22:00:46,245 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 22:00:46,246 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 22:00:46,357 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 22:00:46,357 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 22:00:46,445 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 22:00:46,446 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 22:00:52,188 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 22:00:52,189 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 22:00:53,843 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 22:00:53,844 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 22:00:53,939 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 22:00:53,940 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 22:00:54,025 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 22:00:54,025 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 22:01:18,147 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 22:01:18,147 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 22:01:20,407 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 22:01:20,408 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 22:01:22,444 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 22:01:22,446 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 22:01:26,092 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 22:01:26,094 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 22:01:28,557 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 22:01:28,557 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 22:01:31,436 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 22:01:31,437 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 22:01:33,999 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 22:01:33,999 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 22:01:38,445 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 22:01:38,446 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 22:01:38,553 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 22:01:38,554 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 22:01:38,680 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 22:01:38,681 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 22:03:31,755 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 22:03:31,759 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 22:03:35,545 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 22:03:35,547 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 22:03:44,855 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 22:03:44,857 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 22:03:45,123 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 22:03:45,124 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 22:03:46,578 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 22:03:46,579 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 22:03:49,225 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 22:03:49,226 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 22:03:55,841 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 22:03:55,842 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 22:03:56,004 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 22:03:56,005 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 22:03:56,123 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 22:03:56,123 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 23:29:46,848 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 23:29:46,864 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 23:29:47,718 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 23:29:47,718 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 23:29:47,872 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 23:29:47,872 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 23:30:57,058 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 23:30:57,060 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 23:31:08,067 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 23:31:08,068 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 23:31:08,327 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 23:31:08,328 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 23:31:08,452 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 23:31:08,452 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 23:31:10,790 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 23:31:10,791 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 23:31:10,896 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 23:31:10,897 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 23:31:11,029 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 23:31:11,030 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 23:31:17,002 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 23:31:17,003 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 23:31:17,195 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 23:31:17,227 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 23:31:18,527 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 23:31:18,528 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 23:31:18,629 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 23:31:18,630 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 23:31:18,752 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 23:31:18,752 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 23:31:35,754 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 23:31:35,755 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 23:31:35,953 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 23:31:35,953 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 23:31:36,097 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 23:31:36,097 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 23:31:37,069 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 23:31:37,069 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 23:31:37,150 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 23:31:37,151 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 23:31:37,273 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 23:31:37,273 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 23:31:55,232 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 23:31:55,232 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 23:32:12,808 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 23:32:12,809 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 23:32:13,056 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 23:32:13,057 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-04-27 23:32:13,180 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-04-27 23:32:13,180 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-05-02 15:28:27,665 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-05-02 15:28:27,675 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-05-02 16:27:16,428 | INFO | trend_domain.jobs.collect_signals | Combined collection job finished: {'job_name': 'collect_signals', 'status': 'completed', 'raw_items': 6, 'processed_items': 4, 'themes': 2, 'keywords': 5, 'domain_ideas': 7, 'shortlist': 2, 'watchlist': 3, 'rejected': 2}
+2026-05-02 16:27:16,429 | INFO | trend_domain.jobs.runtime | Job process_signals completed.
+2026-05-02 16:27:16,429 | INFO | trend_domain.jobs.process_signals | Processing job finished with no work: {'job_name': 'process_signals', 'run_id': 'process_signals-run', 'raw_items': 0, 'processed_items': 0, 'themes': 0, 'keywords': 0, 'status': 'completed'}
+2026-05-02 16:51:51,248 | INFO | trend_domain.jobs.collect_signals | Combined collection job finished: {'job_name': 'collect_signals', 'status': 'completed', 'raw_items': 6, 'processed_items': 4, 'themes': 2, 'keywords': 5, 'domain_ideas': 7, 'shortlist': 2, 'watchlist': 3, 'rejected': 2}
+2026-05-02 16:51:51,250 | INFO | trend_domain.jobs.runtime | Job process_signals completed.
+2026-05-02 16:51:51,251 | INFO | trend_domain.jobs.process_signals | Processing job finished with no work: {'job_name': 'process_signals', 'run_id': 'process_signals-run', 'raw_items': 0, 'processed_items': 0, 'themes': 0, 'keywords': 0, 'status': 'completed'}
+2026-05-10 12:10:26,125 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-05-10 12:10:26,130 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-05-10 12:10:48,304 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-05-10 12:11:01,063 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-05-10 12:11:01,143 | INFO | trend_domain.jobs.runtime | Job generate_domain_ideas started with run_id=327a7a9252484f9f8dca693f6748034a
+2026-05-10 12:11:01,152 | INFO | trend_domain.jobs.runtime | Job generate_domain_ideas completed.
+2026-05-10 12:11:01,152 | INFO | trend_domain.jobs.generate_domain_ideas | Domain idea job finished with no work: {'job_name': 'generate_domain_ideas', 'run_id': '327a7a9252484f9f8dca693f6748034a', 'themes': 0, 'keywords': 0, 'domain_ideas': 0, 'status': 'completed'}
+2026-05-10 12:11:08,005 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-05-10 12:11:08,008 | INFO | trend_domain.jobs.runtime | Job generate_domain_ideas started with run_id=c6b742f9002048fc9944e865235aec30
+2026-05-10 12:11:08,008 | INFO | trend_domain.jobs.runtime | Job generate_domain_ideas completed.
+2026-05-10 12:11:08,008 | INFO | trend_domain.jobs.generate_domain_ideas | Domain idea job finished with no work: {'job_name': 'generate_domain_ideas', 'run_id': 'c6b742f9002048fc9944e865235aec30', 'themes': 0, 'keywords': 0, 'domain_ideas': 0, 'status': 'completed'}
+2026-05-10 12:11:10,745 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-05-10 12:11:14,478 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-05-10 12:11:15,734 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-05-10 12:11:17,373 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-05-10 12:11:18,364 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-05-10 12:11:19,950 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-05-10 12:11:19,951 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-05-10 12:21:37,050 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-05-10 12:21:37,058 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-05-10 12:21:37,700 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-05-10 12:21:37,700 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-05-10 12:21:42,541 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-05-10 12:21:42,543 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-05-10 12:21:43,603 | INFO | httpx | HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 404 Not Found"
+2026-05-10 12:21:46,163 | INFO | httpx | HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-10 12:22:01,230 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-05-10 12:22:01,231 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-05-10 12:22:15,503 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-05-10 12:22:15,504 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-05-10 12:22:17,012 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-05-10 12:22:17,013 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-05-10 12:22:19,529 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-05-10 12:22:19,530 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-05-10 12:22:22,050 | INFO | httpx | HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 404 Not Found"
+2026-05-10 12:22:28,207 | INFO | httpx | HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-10 12:22:28,411 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-05-10 12:22:28,411 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-05-10 12:22:29,932 | INFO | httpx | HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 404 Not Found"
+2026-05-10 12:22:32,871 | INFO | httpx | HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-10 12:22:51,555 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-05-10 12:22:51,556 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-05-10 12:23:17,041 | ERROR | whois.whois | Error trying to connect to socket: closing socket - [Errno 61] Connection refused
+2026-05-10 12:23:28,119 | ERROR | whois.whois | Error trying to connect to socket: closing socket - timed out
+2026-05-10 12:24:10,437 | ERROR | whois.whois | Error trying to connect to socket: closing socket - timed out
+2026-05-10 12:25:07,114 | ERROR | whois.whois | Error trying to connect to socket: closing socket - timed out
+2026-05-10 13:01:37,651 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-05-10 13:01:37,656 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-05-10 13:01:46,320 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-05-10 13:01:46,321 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-05-10 13:01:47,430 | INFO | httpx | HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 404 Not Found"
+2026-05-10 13:01:49,564 | INFO | httpx | HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-10 13:01:58,444 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-05-10 13:01:58,445 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-05-10 13:02:01,238 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-05-10 13:02:01,238 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-05-10 13:02:03,771 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-05-10 13:02:03,776 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-05-10 13:02:04,187 | INFO | httpx | HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 404 Not Found"
+2026-05-10 13:02:05,460 | INFO | httpx | HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-10 13:02:05,929 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-05-10 13:02:05,929 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-05-10 13:02:06,464 | INFO | httpx | HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 404 Not Found"
+2026-05-10 13:02:07,294 | INFO | httpx | HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-10 13:02:10,881 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-05-10 13:02:10,881 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-05-10 13:02:52,874 | ERROR | whois.whois | Error trying to connect to socket: closing socket - [Errno 8] nodename nor servname provided, or not known
+2026-05-10 13:02:57,863 | ERROR | whois.whois | Error trying to connect to socket: closing socket - [Errno 8] nodename nor servname provided, or not known
+2026-05-10 13:08:32,474 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-05-10 13:08:34,285 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-05-10 13:08:37,834 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-05-10 13:08:38,836 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-05-10 13:08:39,617 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-05-10 13:08:40,945 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-05-10 13:08:47,095 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-05-10 13:08:47,110 | INFO | trend_domain.jobs.runtime | Job ingest_signals started with run_id=51bd4f48e0204674bb46342a4d51086c
+2026-05-10 13:09:10,692 | INFO | trend_domain.collectors.hackernews | Collected 20 Hacker News items.
+2026-05-10 13:09:12,219 | INFO | trend_domain.collectors.github | Collected 20 GitHub repository items.
+2026-05-10 13:09:12,220 | INFO | trend_domain.collectors.gnews | Skipping GNews collection because GNEWS_API_KEY is not configured.
+2026-05-10 13:09:12,227 | INFO | trend_domain.jobs.runtime | Job ingest_signals completed.
+2026-05-10 13:09:12,229 | INFO | trend_domain.jobs.ingest_signals | Ingestion job finished: {'job_name': 'ingest_signals', 'run_id': '51bd4f48e0204674bb46342a4d51086c', 'raw_items': 40, 'status': 'completed'}
+2026-05-10 13:21:42,756 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-05-10 13:21:42,761 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-05-10 13:21:49,685 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-05-10 13:21:49,686 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-05-10 13:21:51,638 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-05-10 13:21:51,638 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-05-10 13:22:04,076 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-05-10 13:22:04,076 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-05-10 13:22:19,182 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-05-10 13:22:19,184 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-05-10 13:22:19,351 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-05-10 13:22:19,351 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-05-10 13:22:20,202 | INFO | httpx | HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 404 Not Found"
+2026-05-10 13:22:21,020 | INFO | httpx | HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-10 13:22:31,587 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-05-10 13:22:31,589 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-05-10 13:22:32,296 | INFO | httpx | HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 404 Not Found"
+2026-05-10 13:22:33,268 | INFO | httpx | HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-10 13:23:17,376 | INFO | trend_domain.storage | SQLite portfolio database ready at /Users/araafat/domain-gen/domains.db
+2026-05-10 13:23:17,376 | INFO | trend_domain.app | App startup complete. Supabase enabled=False configured=False ready=False
+2026-05-10 13:23:25,897 | ERROR | whois.whois | Error trying to connect to socket: closing socket - [Errno 8] nodename nor servname provided, or not known
+2026-05-10 13:23:40,753 | ERROR | whois.whois | Error trying to connect to socket: closing socket - [Errno 8] nodename nor servname provided, or not known
+2026-05-10 13:24:52,548 | ERROR | whois.whois | Error trying to connect to socket: closing socket - timed out
+2026-05-10 13:24:57,624 | ERROR | whois.whois | Error trying to connect to socket: closing socket - [Errno 54] Connection reset by peer
+2026-05-10 13:25:41,354 | ERROR | whois.whois | Error trying to connect to socket: closing socket - timed out
+2026-05-10 13:26:10,857 | ERROR | whois.whois | Error trying to connect to socket: closing socket - timed out
+2026-05-10 13:26:12,711 | ERROR | whois.whois | Error trying to connect to socket: closing socket - [Errno 8] nodename nor servname provided, or not known

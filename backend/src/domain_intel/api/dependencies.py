@@ -10,8 +10,9 @@ from domain_intel.repositories.auction_repository import AuctionRepository
 from domain_intel.repositories.opportunity_repository import OpportunityRepository
 from domain_intel.repositories.report_repository import AppraisalReportRepository
 from domain_intel.repositories.workflow_repository import AlertRuleRepository, WatchlistRepository
-from domain_intel.services.alert_service import AlertService
+from domain_intel.services.alert_service import AlertService, SlackWebhookAlertDeliveryProvider
 from domain_intel.services.auction_service import AuctionService
+from domain_intel.services.generated_domain_service import GeneratedDomainValuationService
 from domain_intel.services.health_service import HealthService
 from domain_intel.services.opportunity_service import OpportunityService
 from domain_intel.services.report_service import ReportService
@@ -46,7 +47,10 @@ def get_watchlist_service(session: Session = Depends(get_session)) -> WatchlistS
 def get_alert_service(session: Session = Depends(get_session)) -> AlertService:
     """Build the alert-rule service for a request."""
 
-    return AlertService(AlertRuleRepository(session))
+    return AlertService(
+        AlertRuleRepository(session),
+        delivery_providers={"slack": SlackWebhookAlertDeliveryProvider()},
+    )
 
 
 def get_saved_search_service() -> SavedSearchService:
@@ -59,3 +63,11 @@ def get_opportunity_service(session: Session = Depends(get_session)) -> Opportun
     """Build the opportunity screening service for a request."""
 
     return OpportunityService(OpportunityRepository(session))
+
+
+def get_generated_domain_valuation_service(
+    session: Session = Depends(get_session),
+) -> GeneratedDomainValuationService:
+    """Build the generated-domain valuation trigger service for a request."""
+
+    return GeneratedDomainValuationService(session)

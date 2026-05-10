@@ -27,19 +27,21 @@ SEO_SERVICE_TERMS = {
     "property", "realty", "repair", "roof", "roofing", "tax",
 }
 PROFILE_BY_NICHE = {
-    "Tech & AI": "startup_brand",
-    "Finance & SaaS": "flip_fast",
-    "E-commerce": "startup_brand",
-    "Creative & Arts": "startup_brand",
-    "Health & Wellness": "startup_brand",
-    "Real Estate": "seo_exact",
+    "Tech & SaaS": "startup_brand",
+    "Finance & Fintech": "flip_fast",
+    "E-commerce & Retail": "startup_brand",
+    "Travel & Lifestyle": "startup_brand",
+    "Health & Medical": "startup_brand",
+    "Real Estate & Property": "seo_authority",
+    "Education & Learning": "startup_brand",
+    "Legal & Professional": "seo_authority",
+    "Crypto & Web3": "startup_brand",
 }
 PROFILE_EXTENSIONS = {
-    "ai_brand": [".com", ".ai", ".io"],
     "startup_brand": [".com", ".ai", ".io"],
     "flip_fast": [".com", ".io", ".co"],
     "geo_local": [".com", ".co"],
-    "seo_exact": [".com", ".net"],
+    "seo_authority": [".com", ".net"],
 }
 RECOMMENDATION_RANK = {
     DomainRecommendation.BUY: 2,
@@ -52,12 +54,15 @@ REVIEW_BUCKET_RANK = {
     "rejected": 0,
 }
 DESCRIPTIVE_SUFFIXES_BY_NICHE = {
-    "Tech & AI": ("hq", "labs", "ops", "stack", "flow", "guard", "base", "pilot"),
-    "Finance & SaaS": ("pay", "ledger", "risk", "fund", "vault", "flow", "desk"),
-    "E-commerce": ("shop", "cart", "store", "supply", "market", "stack"),
-    "Creative & Arts": ("studio", "works", "craft", "forge", "canvas", "labs"),
-    "Health & Wellness": ("care", "clinic", "health", "well", "labs"),
-    "Real Estate": ("home", "realty", "lease", "property", "roof", "broker"),
+    "Tech & SaaS": ("hq", "labs", "ops", "stack", "flow", "guard", "base", "pilot"),
+    "Finance & Fintech": ("pay", "ledger", "risk", "fund", "vault", "flow", "desk"),
+    "E-commerce & Retail": ("shop", "cart", "store", "supply", "market", "retail"),
+    "Travel & Lifestyle": ("guide", "trip", "stay", "tour", "escape", "local"),
+    "Health & Medical": ("care", "clinic", "health", "well", "labs", "med"),
+    "Real Estate & Property": ("home", "realty", "lease", "property", "roof", "broker"),
+    "Education & Learning": ("academy", "class", "course", "learn", "school", "tutor"),
+    "Legal & Professional": ("case", "legal", "counsel", "contract", "tax", "advisor"),
+    "Crypto & Web3": ("chain", "token", "wallet", "vault", "ledger", "defi"),
 }
 BAD_CANDIDATE_TERMS = {
     "blog", "course", "guide", "list", "news", "newsletter", "podcast", "template", "tutorial",
@@ -112,7 +117,7 @@ def _pick_niche(keywords: list[KeywordInsight]) -> str:
     for keyword in sorted(keywords, key=_keyword_priority, reverse=True):
         if keyword.niche:
             return keyword.niche
-    return "Tech & AI"
+    return "Tech & SaaS"
 
 
 def _pick_buyer_type(keywords: list[KeywordInsight]) -> str:
@@ -126,19 +131,19 @@ def _pick_buyer_type(keywords: list[KeywordInsight]) -> str:
 def _choose_profile(theme: Theme, seed_keywords: list[KeywordInsight], niche: str) -> str:
     """Map a theme and its strongest keywords to a scoring profile."""
     seed_terms = {keyword.keyword for keyword in seed_keywords} | set(theme.related_terms)
-    if niche == "Tech & AI" and seed_terms & AI_SIGNAL_TERMS:
-        return "ai_brand"
-    if niche in {"Health & Wellness", "Real Estate"} and seed_terms & SEO_SERVICE_TERMS:
-        return "seo_exact"
-    if theme.classification is ItemClassification.LOW_VALUE and niche == "Finance & SaaS":
-        return "seo_exact"
+    if niche in {"Tech & SaaS", "Crypto & Web3"} and seed_terms & AI_SIGNAL_TERMS:
+        return "startup_brand"
+    if niche in {"Health & Medical", "Real Estate & Property", "Legal & Professional"} and seed_terms & SEO_SERVICE_TERMS:
+        return "seo_authority"
+    if theme.classification is ItemClassification.LOW_VALUE and niche == "Finance & Fintech":
+        return "seo_authority"
     return PROFILE_BY_NICHE.get(niche, "startup_brand")
 
 
 def _choose_extensions(profile: str, niche: str) -> list[str]:
     """Choose a short extension list so the shortlist stays focused."""
     extensions = PROFILE_EXTENSIONS.get(profile, [".com", ".ai"])
-    if niche not in {"Tech & AI", "Finance & SaaS"}:
+    if niche not in {"Tech & SaaS", "Finance & Fintech", "Crypto & Web3"}:
         extensions = [extension for extension in extensions if extension != ".ai"] or extensions
     return extensions[:3]
 
@@ -326,7 +331,7 @@ def _contextual_score_adjustment(
             notes.append("possible overlap with a source-specific project or brand term")
 
     if candidate_style in {"exact", "exact_match"}:
-        if profile in {"seo_exact", "geo_local"} and matched_keyword.keyword_type in {"commercial_term", "raw_term"}:
+        if profile in {"seo_authority", "geo_local"} and matched_keyword.keyword_type in {"commercial_term", "raw_term"}:
             if matched_keyword.commercial_score >= 3.5:
                 score_adjustment += 3
                 notes.append("exact-match structure fits this buyer profile")
@@ -334,7 +339,7 @@ def _contextual_score_adjustment(
             score_adjustment -= 4
             notes.append("exact-match structure is weaker for this buyer profile")
 
-    if candidate_style == "premium_compact" and profile in {"startup_brand", "ai_brand", "flip_fast"}:
+    if candidate_style == "premium_compact" and profile in {"startup_brand", "flip_fast"}:
         if len(candidate_name) <= 8:
             score_adjustment += 2
             notes.append("compact premium-style structure fits the selected profile")
@@ -370,13 +375,27 @@ def _rationale(
     context_notes: tuple[str, ...] = (),
 ) -> str:
     """Build a concise rationale for why the candidate was generated."""
+    source_context = _source_evidence_summary(theme)
     rationale = (
         f"{explanation} Built from theme '{theme.canonical_name}' using "
         f"{keyword.keyword_type.replace('_', ' ')} '{keyword.keyword}' for {domain}."
     )
+    if source_context:
+        rationale += f" Source evidence: {source_context}."
     if context_notes:
         rationale += f" Review notes: {'; '.join(context_notes[:2])}."
     return rationale
+
+
+def _source_evidence_summary(theme: Theme) -> str:
+    parts: list[str] = []
+    if theme.source_breakdown:
+        parts.append(f"sources {', '.join(theme.source_breakdown[:3])}")
+    if theme.evidence_titles:
+        parts.append(f"examples {', '.join(theme.evidence_titles[:2])}")
+    if theme.reason_highlights:
+        parts.append(f"signals {', '.join(theme.reason_highlights[:2])}")
+    return "; ".join(parts)
 
 
 def generate_domain_opportunities(
@@ -457,6 +476,7 @@ def generate_domain_opportunities(
                     profile=profile,
                     niche=niche,
                     word_banks=word_banks,
+                    user_keywords=[keyword.keyword for keyword in seed_keywords],
                 )
                 score_adjustment, context_notes, context_rejected = _contextual_score_adjustment(
                     candidate_name,

@@ -7,7 +7,7 @@ from decimal import Decimal
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, model_validator
 
 from domain_intel.contracts.appraisal import AppraisalReportContract
 from domain_intel.services.auction_service import (
@@ -17,6 +17,7 @@ from domain_intel.services.auction_service import (
     MarketplaceSummary,
 )
 from domain_intel.services.alert_service import AlertRuleRecord
+from domain_intel.services.generated_domain_service import GeneratedDomainValuationRecord
 from domain_intel.services.opportunity_service import UndervaluedAuctionPage, UndervaluedAuctionRecord, ValueRangeValue
 from domain_intel.services.report_service import AppraisalReportRecord
 from domain_intel.services.saved_search_service import (
@@ -212,6 +213,89 @@ class AppraisalReportRead(BaseModel):
             expires_at=record.expires_at,
             created_by_user_id=record.created_by_user_id,
             report_json=record.report_json,
+            errors=[],
+        )
+
+
+class GeneratedDomainValuationRequest(BaseModel):
+    """Request shape for valuing one generated domain opportunity."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    domain_name: str = Field(
+        min_length=1,
+        validation_alias=AliasChoices("domain_name", "domainName", "sld", "name"),
+    )
+    extension: str = Field(
+        min_length=1,
+        validation_alias=AliasChoices("extension", "tld"),
+    )
+    score: float = 0.0
+    grade: str = ""
+    scoring_profile: str = Field(default="", validation_alias=AliasChoices("scoring_profile", "scoringProfile", "profile"))
+    value_estimate: str = Field(default="", validation_alias=AliasChoices("value_estimate", "valueEstimate", "value_band", "valueBand"))
+    source_theme: str = Field(default="", validation_alias=AliasChoices("source_theme", "sourceTheme", "theme"))
+    keyword: str = ""
+    review_bucket: str = Field(default="", validation_alias=AliasChoices("review_bucket", "reviewBucket"))
+    recommendation: str = ""
+    style: str = ""
+    niche: str = ""
+    buyer_type: str = Field(default="", validation_alias=AliasChoices("buyer_type", "buyerType"))
+    risk_notes: List[str] = Field(default_factory=list, validation_alias=AliasChoices("risk_notes", "riskNotes"))
+    rejected_reason: str = Field(default="", validation_alias=AliasChoices("rejected_reason", "rejectedReason"))
+
+    @model_validator(mode="before")
+    @classmethod
+    def split_full_domain_alias(cls, data):
+        """Accept deferred-model aliases without changing the canonical fields."""
+        if not isinstance(data, dict) or ("domain_name" in data and "extension" in data):
+            return data
+        full_domain = data.get("full_domain") or data.get("fullDomain") or data.get("fqdn")
+        if not full_domain or "." not in str(full_domain):
+            return data
+        name, extension = str(full_domain).strip().lower().rsplit(".", 1)
+        normalized = dict(data)
+        normalized.setdefault("domain_name", name)
+        normalized.setdefault("extension", extension)
+        return normalized
+
+
+class GeneratedDomainValuationRead(BaseModel):
+    """Persisted backend valuation summary for a generated domain."""
+
+    domain_id: UUID
+    fqdn: str
+    classification_result_id: UUID
+    valuation_run_id: UUID
+    status: str
+    refusal_code: Optional[str]
+    refusal_reason: Optional[str]
+    estimated_value_min: Optional[str]
+    estimated_value_max: Optional[str]
+    estimated_value_point: Optional[str]
+    currency: str
+    value_tier: str
+    confidence_level: str
+    reason_codes: List[str] = Field(default_factory=list)
+    errors: List[ModuleError] = Field(default_factory=list)
+
+    @classmethod
+    def from_record(cls, record: GeneratedDomainValuationRecord) -> "GeneratedDomainValuationRead":
+        return cls(
+            domain_id=record.domain_id,
+            fqdn=record.fqdn,
+            classification_result_id=record.classification_result_id,
+            valuation_run_id=record.valuation_run_id,
+            status=record.status,
+            refusal_code=record.refusal_code,
+            refusal_reason=record.refusal_reason,
+            estimated_value_min=str(record.estimated_value_min) if record.estimated_value_min is not None else None,
+            estimated_value_max=str(record.estimated_value_max) if record.estimated_value_max is not None else None,
+            estimated_value_point=str(record.estimated_value_point) if record.estimated_value_point is not None else None,
+            currency=record.currency,
+            value_tier=record.value_tier,
+            confidence_level=record.confidence_level,
+            reason_codes=list(record.reason_codes),
             errors=[],
         )
 
